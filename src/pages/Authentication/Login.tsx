@@ -8,6 +8,28 @@ import { MAX_PASSWORD_LENGTH, sanitizePassword } from '../../common/input/InputS
 import { ErrorModal } from '../../components/Modals/ErrorModal';
 import { useAuth } from '../../contexts/AuthContext';
 
+// O fetch nativo nao tem timeout. Sem este limite, um /api que aceita a conexao
+// mas nunca responde deixa o botao girando indefinidamente e nenhuma mensagem
+// chega na tela — o usuario ve a tela de login "travada", sem erro nenhum.
+const LOGIN_TIMEOUT_MS = 30000;
+
+// O nginx da SPA responde qualquer rota desconhecida com o index.html e status
+// 200. Se o /api nao estiver sendo proxiado, o login recebe HTML com response.ok
+// true e o response.json() estoura com um erro de sintaxe incompreensivel.
+// Aqui isso vira uma mensagem que diz o que realmente aconteceu.
+async function parseLoginResponse(response: Response) {
+  const body = await response.text();
+
+  try {
+    return JSON.parse(body);
+  } catch {
+    throw new Error(
+      'A API respondeu algo que nao e JSON. Verifique se o /api esta sendo ' +
+      'redirecionado para o backend pelo proxy.'
+    );
+  }
+}
+
 const SignIn: React.FC = () => {
   const baseApiUrl = process.env.REACT_APP_API_URL ?? "";
   const location = useLocation();
@@ -29,6 +51,15 @@ const SignIn: React.FC = () => {
       toast.error(errorMessage);
     }
   }, [errorModalOpen, errorMessage]);
+
+  // O interceptor do Api.tsx devolve para ca com ?sessao=expirada quando a
+  // renovacao do token falha. Sem esse aviso, cair de volta na tela de login e
+  // indistinguivel de um login que simplesmente nao funcionou.
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get('sessao') === 'expirada') {
+      toast('Sua sessão expirou. Entre novamente.', { icon: '⚠️' });
+    }
+  }, [location.search]);
 
   function handleErrorModalClose() {
     setErrorModalOpen(false);
@@ -68,16 +99,26 @@ const SignIn: React.FC = () => {
       setLoadingData(true);
       setErrorMessage(false);
       
-      const response = await fetch(baseApiUrl + '/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(formData)
-      });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), LOGIN_TIMEOUT_MS);
+
+      let response: Response;
+
+      try {
+        response = await fetch(baseApiUrl + '/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(formData),
+          signal: controller.signal
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       if (response.ok) {
-        const data = await response.json();
+        const data = await parseLoginResponse(response);
 
         if (!data.jwtToken || !data.token || !data.fullName) {
           throw new Error('Resposta de login inválida');
@@ -92,12 +133,28 @@ const SignIn: React.FC = () => {
         });
 
         console.log('Login: Auth context login completed, navigating...');
-        // Navigate directly to dashboard after successful login
-        const from = location.state?.from?.pathname || '/';
-        console.log('Login: Navigating to', from);
-        
+
+        // O destino pode vir de duas origens: do ProtectedRoute (navegacao dentro
+        // da SPA) ou do interceptor do Api.tsx, que faz recarga completa da pagina
+        // e por isso precisa do sessionStorage para nao perder o destino.
+        let stored: string | null = null;
+
+        try {
+          stored = sessionStorage.getItem('postLoginRedirect');
+          sessionStorage.removeItem('postLoginRedirect');
+        } catch {
+          // sessionStorage pode estar indisponivel (modo privativo).
+        }
+
+        const from = stored || location.state?.from?.pathname || '/';
+
+        // Nunca redirecionar de volta para a propria tela de login: isso recarrega
+        // a mesma pagina e parece que o botao nao fez nada.
+        const target = from.startsWith('/auth/') ? '/' : from;
+        console.log('Login: Navigating to', target);
+
         // Force navigation using window.location to ensure clean redirect
-        window.location.href = from;
+        window.location.href = target;
       } else {
         // Handle different error status codes
         const errorData = await response.json().catch(() => ({}));
@@ -111,21 +168,41 @@ const SignIn: React.FC = () => {
         } else if (response.status === 500) {
           setErrorMessage("Erro interno do servidor. Tente novamente mais tarde.");
           setErrorModalOpen(true);
+        } else if (response.status === 404) {
+          // O proxy respondeu, mas nao existe rota /auth/login atras dele.
+          setErrorMessage("Rota de login nao encontrada na API (404). Verifique o proxy do /api.");
+          setErrorModalOpen(true);
+        } else if (response.status >= 502 && response.status <= 504) {
+          // O nginx esta de pe mas nao consegue falar com o backend.
+          setErrorMessage(`O proxy nao conseguiu alcancar o backend (${response.status}).`);
+          setErrorModalOpen(true);
         } else {
-          setErrorMessage("Erro inesperado. Tente novamente.");
+          setErrorMessage(`Erro inesperado (HTTP ${response.status}). Tente novamente.`);
           setErrorModalOpen(true);
         }
       }
 
     } catch (error) {
       console.error('Login error:', error);
-      
-      if (error instanceof Error) {
+
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        setErrorMessage(
+          `A API nao respondeu em ${LOGIN_TIMEOUT_MS / 1000}s. ` +
+          'Verifique se o backend esta no ar e alcancavel pelo proxy.'
+        );
+      } else if (error instanceof TypeError) {
+        // TypeError no fetch = a requisicao nem chegou a ser respondida
+        // (DNS, conexao recusada, TLS, CORS bloqueado pelo navegador).
+        setErrorMessage(
+          'Nao foi possivel alcancar a API. Verifique a conexao e se o dominio ' +
+          'esta servindo o /api na mesma origem.'
+        );
+      } else if (error instanceof Error) {
         setErrorMessage(error.message);
       } else {
         setErrorMessage("Erro de conexão. Verifique sua internet e tente novamente.");
       }
-      
+
       setErrorModalOpen(true);
     } finally {
       setLoadingData(false);
@@ -382,7 +459,7 @@ const SignIn: React.FC = () => {
       <ErrorModal
         openModal={errorModalOpen}
         handleModalClose={handleErrorModalClose}
-        message='Erro ao realizar login'
+        message={errorMessage || 'Erro ao realizar login'}
         position='center'
       />
     </AuthLayout>
