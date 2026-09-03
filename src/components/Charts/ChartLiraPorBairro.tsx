@@ -2,20 +2,15 @@ import React from 'react';
 import ReactApexChart from 'react-apexcharts';
 import { ApexOptions } from 'apexcharts';
 
-interface LiraData {
-  bairro: string;
-  indiceInfestacaoPredial: number;
-  indiceBreteau: number;
-}
+import { indiceMedido } from '../../pages/Lira/liraDados';
+import type { LiraData } from '../../pages/Lira/liraDados';
 
 interface ChartLiraPorBairroProps {
   data: LiraData[];
 }
 
 const ChartLiraPorBairro: React.FC<ChartLiraPorBairroProps> = ({ data }) => {
-  const validData = data.filter(d => d && d.bairro != null && d.indiceInfestacaoPredial != null && d.indiceBreteau != null);
-
-  console.log(validData)
+  const validData = data.filter(d => d && d.bairro != null);
 
   const options: ApexOptions = {
     chart: {
@@ -57,10 +52,10 @@ const ChartLiraPorBairro: React.FC<ChartLiraPorBairroProps> = ({ data }) => {
     tooltip: {
       y: {
         formatter: function (val) {
-          if (typeof val === 'number') {
+          if (indiceMedido(val)) {
             return val.toFixed(2);
           }
-          return val;
+          return 'Sem medição';
         },
       },
     },
@@ -74,16 +69,19 @@ const ChartLiraPorBairro: React.FC<ChartLiraPorBairroProps> = ({ data }) => {
   const series = [
     {
       name: 'Índice de Infestação Predial',
-      data: validData.map((d) => d.indiceInfestacaoPredial),
+      data: validData.map((d) => indiceMedido(d.indiceInfestacaoPredial) ? d.indiceInfestacaoPredial : null),
     },
     {
-      name: 'Índice de Bretau',
-      data: validData.map((d) => d.indiceBreteau),
+      name: 'Índice de Breteau',
+      data: validData.map((d) => indiceMedido(d.indiceBreteau) ? d.indiceBreteau : null),
     },
   ];
 
   return (
-    <div id="chartLiraPorBairro" className="overflow-hidden">
+    <div className="overflow-hidden">
+      <p className="mb-2 text-xs text-gray-600 dark:text-gray-400">
+        Índices sem medição não possuem barra; os bairros permanecem no gráfico.
+      </p>
       <ReactApexChart options={options} series={series} type="bar" height={350} />
     </div>
   );

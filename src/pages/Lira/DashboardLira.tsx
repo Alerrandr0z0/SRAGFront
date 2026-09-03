@@ -11,13 +11,8 @@ import {
   rotuloCicloCompleto,
 } from './liraCiclos';
 
-interface LiraData {
-  bairro: string;
-  indiceInfestacaoPredial: number;
-  indiceBreteau: number;
-  liraNumber?: number;
-  ano?: number;
-}
+import { formatarIndice, resumirIndices } from './liraDados';
+import type { LiraData } from './liraDados';
 
 const DashboardLira: React.FC = () => {
   const [liraData, setLiraData] = useState<LiraData[]>([]);
@@ -44,7 +39,8 @@ const DashboardLira: React.FC = () => {
       setLiraData(
         response.data.map((item: any) => ({
           ...item,
-          indiceInfestacaoPredial: item.indiceInfestPredial ?? item.indiceInfestacaoPredial,
+          indiceInfestacaoPredial: item.indiceInfestPredial ?? item.indiceInfestacaoPredial ?? null,
+          indiceBreteau: item.indiceBreteau ?? null,
         }))
       );
     } catch (err) {
@@ -81,6 +77,8 @@ const DashboardLira: React.FC = () => {
       dados: liraData.filter((item) => (item.liraNumber ?? 1) === liraNum),
     }))
     .filter(({ dados }) => dados.length > 0);
+
+  const estatisticas = resumirIndices(liraData);
 
   return (
     <DefaultLayout>
@@ -350,7 +348,7 @@ const DashboardLira: React.FC = () => {
               <div className="mt-4 flex items-end justify-between">
                 <div>
                   <h4 className="text-title-md font-bold text-black dark:text-white">
-                    {Math.max(...liraData.map(d => d.indiceInfestacaoPredial || 0)).toFixed(2)}%
+                    {formatarIndice(estatisticas.maxPredial, true)}
                   </h4>
                   <span className="text-sm font-medium">Maior Índice Predial</span>
                 </div>
@@ -366,7 +364,7 @@ const DashboardLira: React.FC = () => {
               <div className="mt-4 flex items-end justify-between">
                 <div>
                   <h4 className="text-title-md font-bold text-black dark:text-white">
-                    {Math.max(...liraData.map(d => d.indiceBreteau || 0)).toFixed(2)}
+                    {formatarIndice(estatisticas.maxBreteau)}
                   </h4>
                   <span className="text-sm font-medium">Maior Índice Breteau</span>
                 </div>
@@ -382,7 +380,7 @@ const DashboardLira: React.FC = () => {
               <div className="mt-4 flex items-end justify-between">
                 <div>
                   <h4 className="text-title-md font-bold text-black dark:text-white">
-                    {(liraData.reduce((sum, d) => sum + (d.indiceInfestacaoPredial || 0), 0) / liraData.length).toFixed(2)}%
+                    {formatarIndice(estatisticas.mediaPredial, true)}
                   </h4>
                   <span className="text-sm font-medium">
                     {viewMode === 'single' ? 'Média Índice Predial' : 'Média Geral Predial'}
@@ -401,14 +399,13 @@ const DashboardLira: React.FC = () => {
                 Resumo por Ciclo LIRA
               </h4>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                Estatísticas detalhadas de cada ciclo
+                Estatísticas detalhadas de cada ciclo. Índices ausentes não entram nas médias.
               </p>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {lirasComDados.map(({ liraNum, dados }) => {
-                const avgPredial = dados.reduce((sum, d) => sum + (d.indiceInfestacaoPredial || 0), 0) / dados.length;
-                const maxPredial = Math.max(...dados.map(d => d.indiceInfestacaoPredial || 0));
+                const resumo = resumirIndices(dados);
 
                 return (
                   <div key={liraNum} className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
@@ -428,14 +425,14 @@ const DashboardLira: React.FC = () => {
                         <div>
                           <p className="text-xs text-gray-600 dark:text-gray-400">Média Predial</p>
                           <p className="text-sm font-semibold text-primary">
-                            {avgPredial.toFixed(2)}%
+                            {formatarIndice(resumo.mediaPredial, true)}
                           </p>
                         </div>
                         
                         <div>
                           <p className="text-xs text-gray-600 dark:text-gray-400">Máximo</p>
                           <p className="text-sm font-semibold text-red-500">
-                            {maxPredial.toFixed(2)}%
+                            {formatarIndice(resumo.maxPredial, true)}
                           </p>
                         </div>
                       </div>
