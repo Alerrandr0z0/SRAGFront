@@ -3,6 +3,13 @@ import Breadcrumb from '../../components/Breadcrumbs/Breadcrumb';
 import DefaultLayout from '../../layout/DefaultLayout';
 import ChartLiraPorBairro from '../../components/Charts/ChartLiraPorBairro';
 import api from '../../service/api/Api';
+import {
+  ANO_PADRAO,
+  ANOS_COM_DADOS,
+  CICLOS_LIRA,
+  rotuloCiclo,
+  rotuloCicloCompleto,
+} from './liraCiclos';
 
 interface LiraData {
   bairro: string;
@@ -14,7 +21,7 @@ interface LiraData {
 
 const DashboardLira: React.FC = () => {
   const [liraData, setLiraData] = useState<LiraData[]>([]);
-  const [year, setYear] = useState<number>(new Date().getFullYear());
+  const [year, setYear] = useState<number>(ANO_PADRAO);
   const [liraNumber, setLiraNumber] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +56,7 @@ const DashboardLira: React.FC = () => {
     }
   };
 
-  const handleYearChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleYearChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     setYear(Number(event.target.value));
   };
 
@@ -63,11 +70,17 @@ const DashboardLira: React.FC = () => {
 
   const getChartTitle = () => {
     if (viewMode === 'single') {
-      const trimesterNames = ['1º Trimestre', '2º Trimestre', '3º Trimestre', '4º Trimestre'];
-      return `LIRA ${liraNumber} - ${trimesterNames[liraNumber - 1]} de ${year}`;
+      return rotuloCicloCompleto(liraNumber, year);
     }
     return `Todos os LIRAs de ${year}`;
   };
+
+  const lirasComDados = CICLOS_LIRA
+    .map((liraNum) => ({
+      liraNum,
+      dados: liraData.filter((item) => (item.liraNumber ?? 1) === liraNum),
+    }))
+    .filter(({ dados }) => dados.length > 0);
 
   return (
     <DefaultLayout>
@@ -119,30 +132,30 @@ const DashboardLira: React.FC = () => {
               <label className="mb-2.5 block text-sm font-medium text-black dark:text-white">
                 Ano
               </label>
-              <input
-                type="number"
+              <select
                 value={year}
                 onChange={handleYearChange}
-                min="2020"
-                max="2030"
                 className="w-full rounded border-[1.5px] border-stroke bg-transparent py-2.5 px-4 text-black outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
-              />
+              >
+                {ANOS_COM_DADOS.map((ano) => (
+                  <option key={ano} value={ano}>{ano}</option>
+                ))}
+              </select>
             </div>
 
             {viewMode === 'single' && (
               <div className="w-full sm:w-64">
                 <label className="mb-2.5 block text-sm font-medium text-black dark:text-white">
-                  Número do LIRA
+                  Ciclo do LIRA
                 </label>
                 <select
                   value={liraNumber}
                   onChange={handleLiraNumberChange}
                   className="w-full rounded border-[1.5px] border-stroke bg-transparent py-2.5 px-4 text-black outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
                 >
-                  <option value={1}>LIRA 1 - 1º Trimestre</option>
-                  <option value={2}>LIRA 2 - 2º Trimestre</option>
-                  <option value={3}>LIRA 3 - 3º Trimestre</option>
-                  <option value={4}>LIRA 4 - 4º Trimestre</option>
+                  {CICLOS_LIRA.map((n) => (
+                    <option key={n} value={n}>{rotuloCiclo(n)}</option>
+                  ))}
                 </select>
               </div>
             )}
@@ -159,7 +172,7 @@ const DashboardLira: React.FC = () => {
                     {getChartTitle()}
                   </h4>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Índices de Infestação Predial e Bretau por Bairro
+                    Índices de Infestação Predial e Breteau por Bairro
                   </p>
                 </div>
                 
@@ -218,7 +231,7 @@ const DashboardLira: React.FC = () => {
             </div>
           </div>
         ) : (
-          /* Modo "Todos os LIRAs" - Exibir 4 gráficos de barra separados */
+          /* Modo "Todos os LIRAs" - Exibir somente ciclos com dados */
           <div className="space-y-6">
             {loading ? (
               <div className="rounded-sm border border-stroke bg-white px-5 pt-6 pb-2.5 shadow-default dark:border-strokedark dark:bg-boxdark sm:px-7.5">
@@ -273,49 +286,29 @@ const DashboardLira: React.FC = () => {
             ) : (
               /* Gráficos individuais para cada LIRA */
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                {[1, 2, 3, 4].map((liraNum) => {
-                  const liraFilteredData = liraData.filter(item => (item.liraNumber || 1) === liraNum);
-                  const trimesterNames = ['1º Trimestre', '2º Trimestre', '3º Trimestre', '4º Trimestre'];
-                  
+                {lirasComDados.map(({ liraNum, dados }) => {
                   return (
                     <div key={liraNum} className="rounded-sm border border-stroke bg-white px-5 pt-6 pb-2.5 shadow-default dark:border-strokedark dark:bg-boxdark sm:px-7.5">
                       <div className="flex flex-col gap-6">
                         <div className="flex justify-between items-center">
                           <div>
                             <h4 className="text-lg font-semibold text-black dark:text-white">
-                              LIRA {liraNum} - {trimesterNames[liraNum - 1]} de {year}
+                              {rotuloCicloCompleto(liraNum, year)}
                             </h4>
                             <p className="text-sm text-gray-600 dark:text-gray-400">
-                              Índices de Infestação Predial e Bretau por Bairro
+                              Índices de Infestação Predial e Breteau por Bairro
                             </p>
                           </div>
                           
-                          {liraFilteredData.length > 0 && (
-                            <div className="text-sm text-gray-600 dark:text-gray-400">
-                              {liraFilteredData.length} bairros
-                            </div>
-                          )}
+                          <div className="text-sm text-gray-600 dark:text-gray-400">
+                            {dados.length} bairros
+                          </div>
                         </div>
 
                         <div className="min-h-[350px] flex items-center justify-center">
-                          {liraFilteredData.length === 0 ? (
-                            <div className="flex flex-col items-center gap-4 p-8 text-center">
-                              <div className="w-12 h-12 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center">
-                                <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                </svg>
-                              </div>
-                              <div>
-                                <p className="text-gray-600 dark:text-gray-400 text-sm">
-                                  Sem dados para este período
-                                </p>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="w-full">
-                              <ChartLiraPorBairro data={liraFilteredData} />
-                            </div>
-                          )}
+                          <div className="w-full">
+                            <ChartLiraPorBairro data={dados} />
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -375,7 +368,7 @@ const DashboardLira: React.FC = () => {
                   <h4 className="text-title-md font-bold text-black dark:text-white">
                     {Math.max(...liraData.map(d => d.indiceBreteau || 0)).toFixed(2)}
                   </h4>
-                  <span className="text-sm font-medium">Maior Índice Bretau</span>
+                  <span className="text-sm font-medium">Maior Índice Breteau</span>
                 </div>
               </div>
             </div>
@@ -405,39 +398,30 @@ const DashboardLira: React.FC = () => {
           <div className="rounded-sm border border-stroke bg-white px-5 pt-6 pb-2.5 shadow-default dark:border-strokedark dark:bg-boxdark sm:px-7.5">
             <div className="mb-6">
               <h4 className="text-lg font-semibold text-black dark:text-white">
-                Resumo por Período LIRA
+                Resumo por Ciclo LIRA
               </h4>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                Estatísticas detalhadas de cada trimestre
+                Estatísticas detalhadas de cada ciclo
               </p>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {[1, 2, 3, 4].map((liraNum) => {
-                const liraFilteredData = liraData.filter(item => (item.liraNumber || 1) === liraNum);
-                const trimesterNames = ['1º Trimestre', '2º Trimestre', '3º Trimestre', '4º Trimestre'];
-                const avgPredial = liraFilteredData.length > 0 
-                  ? liraFilteredData.reduce((sum, d) => sum + (d.indiceInfestacaoPredial || 0), 0) / liraFilteredData.length
-                  : 0;
-                const maxPredial = liraFilteredData.length > 0 
-                  ? Math.max(...liraFilteredData.map(d => d.indiceInfestacaoPredial || 0))
-                  : 0;
+              {lirasComDados.map(({ liraNum, dados }) => {
+                const avgPredial = dados.reduce((sum, d) => sum + (d.indiceInfestacaoPredial || 0), 0) / dados.length;
+                const maxPredial = Math.max(...dados.map(d => d.indiceInfestacaoPredial || 0));
 
                 return (
                   <div key={liraNum} className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
                     <div className="text-center">
                       <h5 className="font-semibold text-black dark:text-white mb-2">
-                        LIRA {liraNum}
+                        {rotuloCiclo(liraNum)}
                       </h5>
-                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
-                        {trimesterNames[liraNum - 1]}
-                      </p>
                       
                       <div className="space-y-2">
                         <div>
                           <p className="text-xs text-gray-600 dark:text-gray-400">Bairros</p>
                           <p className="text-lg font-bold text-black dark:text-white">
-                            {liraFilteredData.length}
+                            {dados.length}
                           </p>
                         </div>
                         
