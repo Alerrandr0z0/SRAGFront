@@ -3,10 +3,11 @@ import Breadcrumb from '../../components/Breadcrumbs/Breadcrumb';
 import DefaultLayout from '../../layout/DefaultLayout';
 import api from '../../service/api/Api';
 import { MAX_UPLOAD_LABEL, validateUploadFile } from '../../common/input/InputSecurity';
+import { ANO_PADRAO, CICLOS_LIRA, rotuloCiclo } from './liraCiclos';
 
 const CarregarLira: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);
-  const [year, setYear] = useState<number>(new Date().getFullYear());
+  const [year, setYear] = useState<number>(ANO_PADRAO);
   const [liraNumber, setLiraNumber] = useState<number>(1);
   const [message, setMessage] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -57,7 +58,7 @@ const CarregarLira: React.FC = () => {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!file || !year || !liraNumber) {
-      setMessage('Por favor, selecione um arquivo, um ano e o número do LIRA.');
+      setMessage('Por favor, selecione um arquivo, um ano e o ciclo do LIRA.');
       return;
     }
 
@@ -79,7 +80,11 @@ const CarregarLira: React.FC = () => {
         ? ` Os ${existingDataCount} registros anteriores foram substituídos.` 
         : '';
       
-      setMessage(`Arquivo LIRA ${liraNumber}/${year} enviado com sucesso! ${response.data.length} registros processados.${overwriteMessage}`);
+      const qtd = response.data.length;
+      const alerta = qtd !== 30
+        ? ` ⚠️ Esperado 30 bairros, vieram ${qtd} — confira o arquivo.`
+        : '';
+      setMessage(`Arquivo LIRA ciclo ${liraNumber}/${year} enviado! ${qtd} registros.${alerta}${overwriteMessage}`);
       
       setFile(null);
       setExistingDataCount(response.data.length); // Update with new count
@@ -129,17 +134,16 @@ const CarregarLira: React.FC = () => {
 
                 <div className="w-full xl:w-1/2">
                   <label className="mb-2.5 block text-black dark:text-white">
-                    Número do LIRA <span className="text-meta-1">*</span>
+                    Ciclo do LIRA <span className="text-meta-1">*</span>
                   </label>
                   <select
                     value={liraNumber}
                     onChange={handleLiraNumberChange}
                     className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 text-black outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
                   >
-                    <option value={1}>LIRA 1 - 1º Trimestre</option>
-                    <option value={2}>LIRA 2 - 2º Trimestre</option>
-                    <option value={3}>LIRA 3 - 3º Trimestre</option>
-                    <option value={4}>LIRA 4 - 4º Trimestre</option>
+                    {CICLOS_LIRA.map((n) => (
+                      <option key={n} value={n}>{rotuloCiclo(n)}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -198,7 +202,7 @@ const CarregarLira: React.FC = () => {
 
               {message && (
                 <div className={`mt-4 p-4 rounded-md ${
-                  message.includes('sucesso') 
+                  message.includes('enviado')
                     ? 'bg-green-50 text-green-800 border border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-900/50' 
                     : 'bg-red-50 text-red-800 border border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/50'
                 }`}>
@@ -216,27 +220,13 @@ const CarregarLira: React.FC = () => {
               </h3>
             </div>
             <div className="p-6.5">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <div className="flex flex-col items-center p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
-                  <div className="text-2xl font-bold text-primary">1º</div>
-                  <div className="text-sm text-center">Janeiro - Março</div>
-                  <div className="text-xs text-gray-600 dark:text-gray-400">Período seco</div>
-                </div>
-                <div className="flex flex-col items-center p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
-                  <div className="text-2xl font-bold text-primary">2º</div>
-                  <div className="text-sm text-center">Abril - Junho</div>
-                  <div className="text-xs text-gray-600 dark:text-gray-400">Transição</div>
-                </div>
-                <div className="flex flex-col items-center p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
-                  <div className="text-2xl font-bold text-primary">3º</div>
-                  <div className="text-sm text-center">Julho - Setembro</div>
-                  <div className="text-xs text-gray-600 dark:text-gray-400">Seco</div>
-                </div>
-                <div className="flex flex-col items-center p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
-                  <div className="text-2xl font-bold text-primary">4º</div>
-                  <div className="text-sm text-center">Outubro - Dezembro</div>
-                  <div className="text-xs text-gray-600 dark:text-gray-400">Chuvoso</div>
-                </div>
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+                {CICLOS_LIRA.map((n) => (
+                  <div key={n} className="flex flex-col items-center p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
+                    <div className="text-2xl font-bold text-primary">{n}</div>
+                    <div className="text-sm text-center">{rotuloCiclo(n)}</div>
+                  </div>
+                ))}
               </div>
               <div className="mt-6 space-y-4">
                 <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-900/50">
@@ -248,7 +238,7 @@ const CarregarLira: React.FC = () => {
                 </div>
                 <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-900/50">
                   <p className="text-sm text-yellow-800 dark:text-yellow-400">
-                    <strong>Substituição de Dados:</strong> Se já existirem dados para o mesmo ano e trimestre, 
+                    <strong>Substituição de Dados:</strong> Se já existirem dados para o mesmo ano e ciclo,
                     eles serão completamente substituídos pelos novos dados do arquivo enviado. 
                     Esta operação não pode ser desfeita.
                   </p>

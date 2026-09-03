@@ -113,8 +113,20 @@ api.interceptors.response.use(
                 localStorage.removeItem("agravoSelected");
                 localStorage.removeItem("dashboardScopeSelected");
                 
-                if (window.location.pathname !== '/auth/login' && !window.location.pathname.includes('/auth/')) {
-                    window.location.href = '/auth/login';
+                if (!window.location.pathname.startsWith('/auth/')) {
+                    // Guarda o destino e sinaliza o motivo do retorno. Sem isso o
+                    // usuario e devolvido a tela de login sem explicacao nenhuma,
+                    // o que e indistinguivel de "o login nao funcionou".
+                    try {
+                        sessionStorage.setItem(
+                            'postLoginRedirect',
+                            window.location.pathname + window.location.search
+                        );
+                    } catch {
+                        // sessionStorage pode estar indisponivel (modo privativo).
+                    }
+
+                    window.location.href = '/auth/login?sessao=expirada';
                 }
                 
                 return Promise.reject(refreshError);

@@ -44,6 +44,28 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
+            set -euo pipefail
             cd /root/arboviroses/ArbovirosesBack
+
             docker compose pull frontend
             docker compose up -d frontend --no-deps
+
+            # Antes o deploy terminava aqui, sem verificar nada. Se o container
+            # subisse quebrado — o nginx encerra com "host not found in upstream"
+            # quando o backend nao esta de pe — o job ficava verde com a producao
+            # fora do ar. Agora o deploy falha alto e mostra o log.
+            PORT=$(grep -E '^PUBLIC_PORT=' .env.docker 2>/dev/null | cut -d= -f2 || true)
+            PORT=${PORT:-8080}
+
+            for _ in $(seq 1 30); do
+              if curl -fsS -o /dev/null "http://localhost:${PORT}/"; then
+                echo "OK: frontend respondendo na porta ${PORT}"
+                exit 0
+              fi
+              sleep 2
+            done
+
+            echo "ERRO: frontend nao respondeu em 60s apos o deploy" >&2
+            docker compose ps frontend >&2
+            docker compose logs --tail=50 frontend >&2
+            exit 1
