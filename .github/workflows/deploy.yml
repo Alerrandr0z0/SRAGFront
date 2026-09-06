@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE_NAME: ghcr.io/kaio05/arbovirosesfront
+  IMAGE_NAME: ghcr.io/devandrelima/arbovirosesfront
 
 jobs:
   build-and-push:
@@ -46,6 +46,10 @@ jobs:
           script: |
             set -euo pipefail
             cd /root/arboviroses/ArbovirosesBack
+
+            # A cópia do frontend é publicada no namespace devandrelima.
+            # Mantém o compose da VPS apontando para a imagem recém-publicada.
+            sed -i 's#ghcr.io/kaio05/arbovirosesfront:latest#ghcr.io/devandrelima/arbovirosesfront:latest#g' docker-compose.yml
 
             docker compose pull frontend
             docker compose up -d frontend --no-deps
