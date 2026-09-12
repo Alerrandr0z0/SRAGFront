@@ -1,612 +1,759 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import type React from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
 import DefaultLayout from '../../layout/DefaultLayout';
-import api from '../../service/api/Api';
-import { SuccessModal } from '../../components/Modals/SuccessModal';
-import { downloadErrorsPdfReport } from '../../service/components/ErrorsPdfReport';
-import { DatePickerBR } from '../../components/Forms/Inputs/DatePickerBR';
-import { MAX_UPLOAD_LABEL, validateUploadFile } from '../../common/input/InputSecurity';
+import {
+  downloadErrorsPdf,
+  type ErrorsResponse,
+  getManageErrors,
+  getSragIngestJob,
+  getSragIngestStatus,
+  type IngestJob,
+  type IngestResult,
+  type IngestStatus,
+  type QuarantineItem,
+  uploadSragSpreadsheet,
+} from '../../service/srag/sragClient';
 
-type Tab = 'upload' | 'erros';
-type FileType = 'xlsx' | 'csv' | 'dbf';
+const MAX_MB = 100;
+const ACCEPTED = ['.xlsx', '.csv', '.json', '.xml', '.parquet'];
+const ACCEPT_ATTR = ACCEPTED.join(',');
 
-interface NotificationRecord {
-    idNotification: number;
-    idAgravo: string | null;
-    dataNotification: number | null;
-    dataNascimento: number | null;
-    classificacao: string | null;
-    sexo: string | null;
-    idBairro: number;
-    nomeBairro: string | null;
-    evolucao: string | null;
-    idadePaciente: number;
-    semanaEpidemiologica: number;
-    category?: string;
-}
+type Tab = 'importar' | 'erros';
 
-const FILE_TYPE_CONFIG: Record<FileType, { endpoint: string; accept: string; label: string }> = {
-    xlsx: { endpoint: '/uploadXlsx', accept: '.xlsx', label: 'Excel (.xlsx)' },
-    csv:  { endpoint: '/uploadCsv',  accept: '.csv',  label: 'CSV (.csv)'   },
-    dbf:  { endpoint: '/uploadDbf',  accept: '.dbf',  label: 'DBF (.dbf)'   },
-};
+const GerenciarDados: React.FC = () => {
+  const { isAdmin } = useAuth();
+  const [tab, setTab] = useState<Tab>('importar');
+  const [status, setStatus] = useState<IngestStatus | null>(null);
+  const [loadingStatus, setLoadingStatus] = useState(true);
+  const [statusError, setStatusError] = useState<string | null>(null);
 
-const DOENCAS = [
-    { value: '', label: 'Todas as doenças' },
-    { value: 'A90',   label: 'Dengue' },
-    { value: 'A92.0', label: 'Chikungunya' },
-    { value: 'A928',  label: 'Zika' },
-];
+  const [file, setFile] = useState<File | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [result, setResult] = useState<IngestResult | null>(null);
 
-const ERROR_CATEGORIES = [
-    { value: '', label: 'Todos os problemas' },
-    { value: 'BAIRRO_FALTANDO',          label: 'Bairro faltando' },
-    { value: 'DOENCA_NAO_INFORMADA',     label: 'Doença não informada' },
-    { value: 'CLASSIFICACAO_FALTANDO',   label: 'Classificação faltando' },
-    { value: 'DATA_FALTANDO',            label: 'Data faltando' },
-    { value: 'SEXO_NAO_INFORMADO',       label: 'Sexo não informado' },
-    { value: 'EVOLUCAO_NAO_INFORMADA',   label: 'Evolução não informada' },
-    { value: 'DATA_NASCIMENTO_FALTANDO', label: 'Data de nascimento faltando' },
-    { value: 'OUTROS',                   label: 'Outros' },
-];
-
-const CATEGORY_BADGE: Record<string, string> = {
-    BAIRRO_FALTANDO:          'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
-    DOENCA_NAO_INFORMADA:     'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-    CLASSIFICACAO_FALTANDO:   'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
-    DATA_FALTANDO:            'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-    SEXO_NAO_INFORMADO:       'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400',
-    EVOLUCAO_NAO_INFORMADA:   'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
-    DATA_NASCIMENTO_FALTANDO: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
-    OUTROS:                   'bg-gray-100 text-gray-700 dark:bg-meta-4 dark:text-bodydark1',
-};
-
-const DOENCA_LABEL: Record<string, string> = {
-    A90:    'Dengue',
-    'A92.0':'Chikungunya',
-    A928:   'Zika',
-};
-
-function formatDate(epoch: number | null): string {
-    if (!epoch) return '—';
-    const d = new Date(epoch);
-    return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
-}
-
-function toStartEpoch(dateStr: string): number {
-    return new Date(dateStr + 'T00:00:00').getTime();
-}
-function toEndEpoch(dateStr: string): number {
-    return new Date(dateStr + 'T23:59:59.999').getTime();
-}
-
-interface PageMeta { totalElements: number; totalPages: number; number: number; }
-
-export default function GerenciarDados() {
-    const navigate = useNavigate();
-    const [tab, setTab] = useState<Tab>('upload');
-
-    const [fileType, setFileType]           = useState<FileType>('xlsx');
-    const [file, setFile]                   = useState<File | null>(null);
-    const [fileName, setFileName]           = useState<string | null>(null);
-    const [uploadError, setUploadError]     = useState<string | null>(null);
-    const [loadingUpload, setLoadingUpload] = useState(false);
-    const [openSuccessModal, setOpenSuccessModal] = useState(false);
-    const [successMessage, setSuccessMessage]     = useState('Arquivo processado com sucesso!');
-    const [asyncPending, setAsyncPending]   = useState(false);
-    const [latestDates, setLatestDates] = useState<{ dengue: string | null; chikungunya: string | null; zika: string | null } | null>(null);
-
-    const [category, setCategory]   = useState('');
-    const [doencaErr, setDoencaErr] = useState('');
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate]     = useState('');
-    const [errPage, setErrPage]     = useState(0);
-
-    const [data, setData]       = useState<NotificationRecord[]>([]);
-    const [meta, setMeta]       = useState<PageMeta | null>(null);
-    const [loading, setLoading] = useState(false);
-
-    const [pdfModalOpen, setPdfModalOpen] = useState(false);
-    const [pdfLoading, setPdfLoading]     = useState(false);
-    const [pdfError, setPdfError]         = useState<string | null>(null);
-
-    useEffect(() => {
-        api.get('/notifications/latest-date')
-            .then(res => setLatestDates(res.data?.data ?? null))
-            .catch(() => setLatestDates(null));
-    }, []);
-
-    function handleTypeChange(type: FileType) {
-        setFileType(type);
-        setFile(null);
-        setFileName(null);
-        setUploadError(null);
-        setAsyncPending(false);
+  const fetchStatus = useCallback(async () => {
+    setLoadingStatus(true);
+    setStatusError(null);
+    try {
+      setStatus(await getSragIngestStatus());
+    } catch {
+      setStatusError('Não foi possível carregar o estado atual da base.');
+    } finally {
+      setLoadingStatus(false);
     }
+  }, []);
 
-    function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-        setUploadError(null);
-        setFile(null);
-        setFileName(null);
-        setAsyncPending(false);
-        const uploaded = event.target.files?.[0];
-        if (uploaded) {
-            const validationError = validateUploadFile(uploaded, [fileType]);
-            if (validationError) {
-                setUploadError(validationError);
-                event.target.value = '';
-                return;
-            }
-            setFile(uploaded);
-            setFileName(uploaded.name);
-        }
-    }
+  useEffect(() => {
+    if (isAdmin) fetchStatus();
+  }, [isAdmin, fetchStatus]);
 
-    async function handleUpload() {
-        if (!file) { alert('Por favor, selecione um arquivo primeiro.'); return; }
-        const formData = new FormData();
-        formData.append('file', file);
-        try {
-            setLoadingUpload(true);
-            setAsyncPending(false);
-            const { endpoint } = FILE_TYPE_CONFIG[fileType];
-            const response = await api.post(endpoint, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-            setFile(null);
-            setFileName(null);
-            if (response.status === 202) {
-                setAsyncPending(true);
-            } else if (response.status === 200 || response.status === 201) {
-                const body = response.data;
-                let msg = body?.message || 'Arquivo processado com sucesso!';
-                const dataInfo = body?.data;
-                if (dataInfo !== undefined && dataInfo !== null) {
-                    if (typeof dataInfo === 'object') {
-                        const entries = Object.entries(dataInfo as Record<string, unknown>).map(([k, v]) => `${k}: ${v}`).join(', ');
-                        if (entries) msg += ` (${entries})`;
-                    } else {
-                        msg += ` — ${dataInfo} registros processados.`;
-                    }
-                }
-                setSuccessMessage(msg);
-                setOpenSuccessModal(true);
-            } else if (response.status === 401) {
-                navigate('/auth/login');
-            } else {
-                setUploadError('Falha no envio do arquivo.');
-            }
-        } catch (error: any) {
-            setUploadError(error?.response?.data?.message || 'Ocorreu um erro ao enviar o arquivo.');
-        } finally {
-            setLoadingUpload(false);
-        }
-    }
-
-    async function fetchErrors() {
-        setLoading(true);
-        try {
-            const params: Record<string, string | number> = { page: errPage, size: 20 };
-            if (category)  params.category  = category;
-            if (doencaErr) params.idAgravo  = doencaErr;
-            if (startDate) params.startDate = toStartEpoch(startDate);
-            if (endDate)   params.endDate   = toEndEpoch(endDate);
-            const res = await api.get('/notifications/errors/manage', { params });
-            const pageData = res.data?.data;
-            setData(pageData?.content ?? []);
-            setMeta({ totalElements: pageData?.totalElements, totalPages: pageData?.totalPages, number: pageData?.number });
-        } catch { /* silently */ }
-        finally { setLoading(false); }
-    }
-
-    useEffect(() => { setErrPage(0); }, [category, doencaErr, startDate, endDate, tab]);
-
-    useEffect(() => {
-        if (tab === 'erros') fetchErrors();
-    }, [tab, errPage, category, doencaErr, startDate, endDate]);
-
-    function handleTabChange(t: Tab) {
-        setTab(t);
-        setData([]);
-        setMeta(null);
-    }
-
-    function buildActiveFilters(useCategory: boolean) {
-        return {
-            category:  useCategory && category  ? category  : undefined,
-            idAgravo:  doencaErr                ? doencaErr : undefined,
-            startDate: startDate                ? toStartEpoch(startDate) : undefined,
-            endDate:   endDate                  ? toEndEpoch(endDate)     : undefined,
-        };
-    }
-
-    async function handleExportPdf(useCategory: boolean) {
-        setPdfLoading(true);
-        setPdfError(null);
-        try {
-            await downloadErrorsPdfReport(buildActiveFilters(useCategory));
-            setPdfModalOpen(false);
-        } catch (err: any) {
-            setPdfError(err?.message ?? 'Erro ao gerar o PDF.');
-        } finally {
-            setPdfLoading(false);
-        }
-    }
-
-    const hasAnyFilter = !!(category || doencaErr || startDate || endDate);
-    const categoryLabel = ERROR_CATEGORIES.find(c => c.value === category)?.label ?? '';
-    const doencaLabel   = DOENCAS.find(d => d.value === doencaErr)?.label ?? '';
-
-    function isoToBR(iso: string): string {
-        const [y, m, d] = iso.split('-');
-        return `${d}/${m}/${y}`;
-    }
-
-    function activeFiltersSummary(): string {
-        const parts: string[] = [];
-        if (category)  parts.push(`Problema: ${categoryLabel}`);
-        if (doencaErr) parts.push(`Doença: ${doencaLabel}`);
-        if (startDate) parts.push(`De: ${isoToBR(startDate)}`);
-        if (endDate)   parts.push(`Até: ${isoToBR(endDate)}`);
-        return parts.join(' | ');
-    }
-
-    const thCls = 'px-3 py-2 text-left text-xs font-semibold text-gray-500 dark:text-bodydark2 uppercase tracking-wide';
-    const tdCls = 'px-3 py-2 text-sm text-gray-700 dark:text-bodydark whitespace-nowrap';
-
+  if (!isAdmin) {
     return (
-        <DefaultLayout>
-            <div className="mx-auto p-6">
-                <h2 className="text-2xl font-semibold text-indigo-600 mb-5">Gerir Notificações</h2>
+      <DefaultLayout>
+        <p className="py-16 text-center text-red-600">
+          Acesso restrito: somente administradores podem gerenciar os dados.
+        </p>
+      </DefaultLayout>
+    );
+  }
 
-                {/* Tabs */}
-                <div className="flex border-b border-gray-200 dark:border-strokedark mb-6">
-                    {([['upload', 'Importar Notificações'], ['erros', 'Dados com Algum Erro']] as [Tab, string][]).map(([t, label]) => (
-                        <button
-                            key={t}
-                            onClick={() => handleTabChange(t)}
-                            className={`px-5 py-2.5 text-sm font-medium border-b-2 transition ${
-                                tab === t
-                                    ? 'border-indigo-600 text-indigo-600'
-                                    : 'border-transparent text-gray-500 dark:text-bodydark2 hover:text-gray-700 dark:hover:text-bodydark'
-                            }`}
-                        >
-                            {label}
-                        </button>
-                    ))}
-                </div>
+  function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    setUploadError(null);
+    setResult(null);
+    setFile(null);
+    const uploaded = event.target.files?.[0];
+    if (!uploaded) return;
+    const ext = `.${uploaded.name.split('.').pop()?.toLowerCase() ?? ''}`;
+    if (!ACCEPTED.includes(ext)) {
+      setUploadError('Formato inválido. Aceitos: .xlsx, .csv, .json, .xml, .parquet.');
+      event.target.value = '';
+      return;
+    }
+    if (uploaded.size > MAX_MB * 1024 * 1024) {
+      setUploadError(`Arquivo excede ${MAX_MB}MB.`);
+      event.target.value = '';
+      return;
+    }
+    setFile(uploaded);
+  }
 
-                {/* ── Aba Upload ── */}
-                {tab === 'upload' && (
-                    <div className="bg-white dark:bg-boxdark shadow-md rounded-lg p-6">
-                        <div className="flex flex-wrap justify-center gap-3 mb-6">
-                            {[
-                                { key: 'dengue'      as const, label: 'Dengue',      cls: 'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-900/20 dark:text-orange-300' },
-                                { key: 'chikungunya' as const, label: 'Chikungunya', cls: 'border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-800 dark:bg-purple-900/20 dark:text-purple-300' },
-                                { key: 'zika'        as const, label: 'Zika',        cls: 'border-teal-200   bg-teal-50   text-teal-700   dark:border-teal-800   dark:bg-teal-900/20   dark:text-teal-300'   },
-                            ].map(({ key, label, cls }) => (
-                                <div key={key} className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm ${cls}`}>
-                                    <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                    </svg>
-                                    <span>
-                                        <strong>{label}</strong>
-                                        {latestDates?.[key]
-                                            ? <> atualizado até <strong>{latestDates[key]}</strong></>
-                                            : <span className="opacity-60"> — sem dados</span>
-                                        }
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
+  async function handleUpload() {
+    if (!file) return;
+    setUploading(true);
+    setUploadError(null);
+    setResult(null);
+    try {
+      const res = await uploadSragSpreadsheet(file);
+      setFile(null);
+      if (res.status === 'processing' || res.message === 'Processamento iniciado.') {
+        await pollIngestJob(res.file);
+      } else {
+        setResult(res);
+        await fetchStatus();
+      }
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+        'Falha no envio do arquivo.';
+      setUploadError(message);
+    } finally {
+      setUploading(false);
+    }
+  }
 
-                        <div className="mb-6">
-                            <p className="text-gray-700 dark:text-bodydark font-medium mb-3 text-center">Selecione o formato do arquivo</p>
-                            <div className="flex justify-center gap-4 flex-wrap">
-                                {(Object.keys(FILE_TYPE_CONFIG) as FileType[]).map((type) => (
-                                    <label
-                                        key={type}
-                                        className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 cursor-pointer transition select-none ${
-                                            fileType === type
-                                                ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 font-semibold'
-                                                : 'border-gray-300 dark:border-strokedark text-gray-600 dark:text-bodydark2 hover:border-indigo-400 dark:hover:border-indigo-500'
-                                        }`}
-                                    >
-                                        <input
-                                            type="radio"
-                                            name="fileType"
-                                            value={type}
-                                            checked={fileType === type}
-                                            onChange={() => handleTypeChange(type)}
-                                            className="accent-indigo-600"
-                                        />
-                                        {FILE_TYPE_CONFIG[type].label}
-                                    </label>
-                                ))}
-                            </div>
-                        </div>
+  async function pollIngestAttempt(fileName: string): Promise<boolean> {
+    let job: IngestJob;
+    try {
+      job = await getSragIngestJob();
+    } catch {
+      return false;
+    }
+    if (job.file && job.file !== fileName) return false;
+    if (job.state === 'done') {
+      setResult({
+        message: 'Ingestão concluída com sucesso!',
+        file: job.file ?? fileName,
+        stats: job.stats ?? undefined,
+      });
+      await fetchStatus();
+      return true;
+    }
+    if (job.state === 'error') {
+      setUploadError(job.error ?? 'Falha na ingestão.');
+      await fetchStatus();
+      return true;
+    }
+    return false;
+  }
 
-                        <div className="border-2 border-dashed border-indigo-400 dark:border-indigo-600 rounded-lg p-6 text-center">
-                            <p className="text-gray-700 dark:text-bodydark font-medium">Arraste e solte seu arquivo aqui ou</p>
-                            <label htmlFor="file-upload-manage" className="inline-block mt-2 px-4 py-2 bg-indigo-600 text-white rounded-md cursor-pointer hover:bg-indigo-700 transition">
-                                Escolher arquivo
-                                <input
-                                    id="file-upload-manage"
-                                    type="file"
-                                    className="sr-only"
-                                    accept={FILE_TYPE_CONFIG[fileType].accept}
-                                    onChange={handleFileChange}
-                                />
-                            </label>
-                            {fileName && <p className="mt-2 text-green-600 dark:text-meta-3 font-medium">Arquivo selecionado: {fileName}</p>}
-                            <p className="mt-2 text-xs text-gray-500 dark:text-bodydark2">Tamanho maximo: {MAX_UPLOAD_LABEL}.</p>
-                            {uploadError && <p className="mt-3 text-red-600 dark:text-meta-1">{uploadError}</p>}
-                        </div>
+  async function pollIngestJob(fileName: string) {
+    for (let attempt = 0; attempt < 120; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      if (await pollIngestAttempt(fileName)) return;
+    }
+    setUploadError('Tempo esgotado aguardando a ingestão. Verifique o estado da base.');
+    await fetchStatus();
+  }
 
-                        {asyncPending && (
-                            <div className="mt-4 flex items-start gap-3 rounded-lg border border-yellow-300 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/20 p-4 text-yellow-800 dark:text-yellow-300">
-                                <svg className="mt-0.5 h-5 w-5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-                                </svg>
-                                <div>
-                                    <p className="font-semibold">Arquivo recebido — processamento em andamento</p>
-                                    <p className="text-sm mt-1">O servidor está processando os dados em segundo plano. Isso pode levar alguns minutos.</p>
-                                </div>
-                            </div>
-                        )}
+  return (
+    <DefaultLayout>
+      <div className="mx-auto p-6">
+        <h1 className="text-2xl font-semibold text-indigo-600 dark:text-indigo-400 mb-5">
+            Gerir Notificações
+          </h1>
 
-                        <div className="flex flex-col sm:flex-row justify-center gap-4 mt-6">
-                            <button
-                                onClick={handleUpload}
-                                disabled={!file || loadingUpload}
-                                className="flex items-center justify-center bg-indigo-600 text-white px-6 py-2 rounded hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
-                            >
-                                {loadingUpload && (
-                                    <svg className="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                    </svg>
-                                )}
-                                Enviar Arquivo
-                            </button>
-                        </div>
-                    </div>
-                )}
+        <div className="flex border-b border-gray-200 dark:border-strokedark mb-6">
+          {(
+            [
+              ['importar', 'Importar Notificações'],
+              ['erros', 'Dados com Algum Erro'],
+            ] as [Tab, string][]
+          ).map(([t, label]) => (
+            <button type="button"
+              key={t}
+              onClick={() => setTab(t)}
+              className={`px-5 py-2.5 text-sm font-medium border-b-2 transition ${
+                tab === t
+                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                  : 'border-transparent text-gray-500 dark:text-bodydark2 hover:text-gray-700 dark:hover:text-bodydark'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
 
-                {/* ── Filtros aba erros ── */}
-                {tab === 'erros' && (
-                    <div className="rounded-lg border border-gray-200 dark:border-strokedark bg-white dark:bg-boxdark p-4 mb-5 shadow-sm">
-                        <div className="flex flex-wrap items-end gap-3">
-                            {/* Problema */}
-                            <div className="flex flex-col gap-1">
-                                <label className="text-xs font-medium text-gray-500 dark:text-bodydark2 uppercase tracking-wide">Problema</label>
-                                <select
-                                    value={category} onChange={e => setCategory(e.target.value)}
-                                    className="rounded border border-gray-300 dark:border-form-strokedark bg-white dark:bg-form-input text-gray-800 dark:text-bodydark px-3 py-1.5 text-sm w-52 focus:border-indigo-500 focus:outline-none"
-                                >
-                                    {ERROR_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-                                </select>
-                            </div>
-
-                            {/* Doença */}
-                            <div className="flex flex-col gap-1">
-                                <label className="text-xs font-medium text-gray-500 dark:text-bodydark2 uppercase tracking-wide">Doença</label>
-                                <select
-                                    value={doencaErr} onChange={e => setDoencaErr(e.target.value)}
-                                    className="rounded border border-gray-300 dark:border-form-strokedark bg-white dark:bg-form-input text-gray-800 dark:text-bodydark px-3 py-1.5 text-sm w-44 focus:border-indigo-500 focus:outline-none"
-                                >
-                                    {DOENCAS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
-                                </select>
-                            </div>
-
-                            {/* Data início */}
-                            <DatePickerBR
-                                label="Data início"
-                                value={startDate}
-                                maxDate={endDate || undefined}
-                                onChange={setStartDate}
-                            />
-
-                            {/* Data fim */}
-                            <DatePickerBR
-                                label="Data fim"
-                                value={endDate}
-                                minDate={startDate || undefined}
-                                onChange={setEndDate}
-                            />
-
-                            {/* Limpar filtros */}
-                            {hasAnyFilter && (
-                                <button
-                                    onClick={() => { setCategory(''); setDoencaErr(''); setStartDate(''); setEndDate(''); }}
-                                    className="rounded border border-gray-300 dark:border-strokedark px-3 py-1.5 text-sm text-gray-500 dark:text-bodydark2 hover:bg-gray-100 dark:hover:bg-meta-4 transition"
-                                >
-                                    Limpar filtros
-                                </button>
-                            )}
-
-                            {/* Exportar PDF */}
-                            <button
-                                onClick={() => { setPdfError(null); setPdfModalOpen(true); }}
-                                className="ml-auto flex items-center gap-2 rounded bg-red-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-700 transition"
-                            >
-                                <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-                                </svg>
-                                Exportar PDF
-                            </button>
-                        </div>
-
-                        {hasAnyFilter && (
-                            <p className="mt-3 text-xs text-indigo-600 dark:text-indigo-400 font-medium">
-                                Filtros ativos: {activeFiltersSummary()}
-                            </p>
-                        )}
-                    </div>
-                )}
-
-                {/* ── Tabela erros ── */}
-                {tab === 'erros' && (
-                    <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-strokedark bg-white dark:bg-boxdark shadow-sm">
-                        {loading ? (
-                            <div className="flex justify-center items-center py-16">
-                                <svg className="animate-spin h-8 w-8 text-indigo-500" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                </svg>
-                            </div>
-                        ) : data.length === 0 ? (
-                            <p className="py-16 text-center text-gray-400 dark:text-bodydark2">Nenhum registro encontrado.</p>
-                        ) : (
-                            <table className="min-w-full">
-                                <thead className="bg-gray-50 dark:bg-meta-4 border-b border-gray-200 dark:border-strokedark">
-                                    <tr>
-                                        <th className={thCls}>Doença</th>
-                                        <th className={thCls}>Data Notif.</th>
-                                        <th className={thCls}>Bairro</th>
-                                        <th className={thCls}>Sexo</th>
-                                        <th className={thCls}>Classificação</th>
-                                        <th className={thCls}>Evolução</th>
-                                        <th className={thCls}>Sem. Epid.</th>
-                                        <th className={thCls}>Problema</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-100 dark:divide-strokedark">
-                                    {data.map(row => (
-                                        <tr key={row.idNotification} className="hover:bg-gray-50 dark:hover:bg-meta-4 transition-colors">
-                                            <td className={tdCls}>{DOENCA_LABEL[row.idAgravo ?? ''] ?? row.idAgravo ?? '—'}</td>
-                                            <td className={tdCls}>{formatDate(row.dataNotification)}</td>
-                                            <td className={tdCls}>{row.nomeBairro || '—'}</td>
-                                            <td className={tdCls}>{row.sexo || '—'}</td>
-                                            <td className={tdCls}>{row.classificacao || '—'}</td>
-                                            <td className={tdCls}>{row.evolucao || '—'}</td>
-                                            <td className={`${tdCls} text-center`}>{row.semanaEpidemiologica || '—'}</td>
-                                            <td className={tdCls}>
-                                                <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${CATEGORY_BADGE[row.category ?? 'OUTROS'] ?? CATEGORY_BADGE.OUTROS}`}>
-                                                    {ERROR_CATEGORIES.find(c => c.value === row.category)?.label ?? 'Outros'}
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        )}
-                    </div>
-                )}
-
-                {/* ── Paginação ── */}
-                {tab === 'erros' && meta && meta.totalPages > 1 && (
-                    <div className="flex items-center justify-between mt-4 text-sm text-gray-600 dark:text-bodydark">
-                        <span>{meta.totalElements} registros — Página {meta.number + 1} de {meta.totalPages}</span>
-                        <div className="flex gap-2">
-                            <button
-                                onClick={() => setErrPage(p => Math.max(0, p - 1))}
-                                disabled={errPage === 0}
-                                className="rounded border border-gray-300 dark:border-strokedark px-3 py-1 text-gray-600 dark:text-bodydark hover:bg-gray-100 dark:hover:bg-meta-4 disabled:opacity-40 transition"
-                            >
-                                ← Anterior
-                            </button>
-                            <button
-                                onClick={() => setErrPage(p => Math.min((meta.totalPages ?? 1) - 1, p + 1))}
-                                disabled={errPage >= (meta.totalPages ?? 1) - 1}
-                                className="rounded border border-gray-300 dark:border-strokedark px-3 py-1 text-gray-600 dark:text-bodydark hover:bg-gray-100 dark:hover:bg-meta-4 disabled:opacity-40 transition"
-                            >
-                                Próxima →
-                            </button>
-                        </div>
-                    </div>
-                )}
+        {tab === 'importar' && (
+          <div className="bg-white dark:bg-boxdark shadow-md rounded-lg p-6">
+            <div className="border-2 border-dashed border-primary/40 rounded-lg p-6 text-center">
+              <p className="font-medium text-black dark:text-white">
+                Selecione o arquivo SIVEP-Gripe
+              </p>
+              <label
+                htmlFor="srag-upload"
+                className="inline-block mt-2 px-4 py-2 bg-primary text-white rounded-md cursor-pointer hover:bg-opacity-90 transition"
+              >
+                Escolher arquivo
+                <input
+                  id="srag-upload"
+                  type="file"
+                  className="sr-only"
+                  accept={ACCEPT_ATTR}
+                  onChange={handleFileChange}
+                />
+              </label>
+              {file && <p className="mt-2 font-medium text-green-600">Selecionado: {file.name}</p>}
+              <p className="mt-2 text-xs text-gray-500">
+                .xlsx, .csv, .json, .xml ou .parquet · Tamanho máximo: {MAX_MB}MB.
+              </p>
+              {uploadError && <p className="mt-3 text-red-600">{uploadError}</p>}
             </div>
 
-            <SuccessModal
-                openModal={openSuccessModal}
-                handleModalClose={() => setOpenSuccessModal(false)}
-                message={successMessage}
-                position="center"
-            />
+            <div className="flex justify-center mt-6">
+              <button type="button"
+                onClick={handleUpload}
+                disabled={!file || uploading}
+                className="flex items-center bg-primary text-white px-6 py-2 rounded hover:bg-opacity-90 disabled:opacity-60 disabled:cursor-not-allowed transition"
+              >
+                {uploading && (
+                  <svg aria-hidden="true" className="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                    />
+                  </svg>
+                )}
+                {uploading ? 'Processando…' : 'Enviar e atualizar base'}
+              </button>
+            </div>
 
-            {/* ── Modal PDF ── */}
-            {pdfModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                    <div className="w-full max-w-md rounded-xl bg-white dark:bg-boxdark p-6 shadow-2xl">
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
-                                <svg className="h-5 w-5 text-red-600 dark:text-meta-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-                                </svg>
-                            </div>
-                            <h3 className="text-lg font-semibold text-gray-800 dark:text-bodydark1">Exportar relatório PDF</h3>
-                        </div>
-
-                        {hasAnyFilter ? (
-                            <>
-                                <p className="text-sm text-gray-600 dark:text-bodydark mb-1">
-                                    Você possui filtros ativos. Como deseja exportar?
-                                </p>
-                                <p className="text-xs text-indigo-600 dark:text-indigo-400 font-medium mb-4">
-                                    {activeFiltersSummary()}
-                                </p>
-                                <div className="flex flex-col gap-3">
-                                    <button
-                                        onClick={() => handleExportPdf(true)}
-                                        disabled={pdfLoading}
-                                        className="flex items-center justify-center gap-2 rounded-lg border-2 border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 px-4 py-3 text-sm font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 disabled:opacity-60 transition"
-                                    >
-                                        {pdfLoading ? (
-                                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                            </svg>
-                                        ) : (
-                                            <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
-                                            </svg>
-                                        )}
-                                        Exportar apenas com os filtros ativos
-                                    </button>
-
-                                    <button
-                                        onClick={() => handleExportPdf(false)}
-                                        disabled={pdfLoading}
-                                        className="flex items-center justify-center gap-2 rounded-lg border border-gray-300 dark:border-strokedark px-4 py-3 text-sm font-medium text-gray-700 dark:text-bodydark hover:bg-gray-50 dark:hover:bg-meta-4 disabled:opacity-60 transition"
-                                    >
-                                        Exportar todos os dados com erros
-                                    </button>
-                                </div>
-                            </>
-                        ) : (
-                            <>
-                                <p className="text-sm text-gray-600 dark:text-bodydark mb-5">
-                                    Nenhum filtro aplicado. Deseja exportar <strong>todos os dados com erros</strong>?
-                                </p>
-                                <button
-                                    onClick={() => handleExportPdf(false)}
-                                    disabled={pdfLoading}
-                                    className="w-full flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60 transition"
-                                >
-                                    {pdfLoading && (
-                                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                        </svg>
-                                    )}
-                                    {pdfLoading ? 'Gerando PDF...' : 'Sim, exportar todos'}
-                                </button>
-                            </>
-                        )}
-
-                        {pdfError && (
-                            <p className="mt-3 text-sm text-red-600 dark:text-meta-1">{pdfError}</p>
-                        )}
-
-                        <button
-                            onClick={() => { setPdfModalOpen(false); setPdfError(null); }}
-                            disabled={pdfLoading}
-                            className="mt-3 w-full rounded-lg px-4 py-2 text-sm text-gray-500 dark:text-bodydark2 hover:bg-gray-100 dark:hover:bg-meta-4 disabled:opacity-60 transition"
-                        >
-                            Cancelar
-                        </button>
-                    </div>
-                </div>
+            {result && (
+              <div className="mt-6 rounded border border-green-300 bg-green-50 p-4 text-sm text-green-800 dark:bg-green-900/20 dark:text-green-300">
+                <p className="font-semibold">{result.message}</p>
+                {result.stats && (
+                  <p>
+                    Arquivo: {result.file} · Fontes: {result.stats.sources} · Lidos:{' '}
+                    {result.stats.temp_cases} · Únicos: {result.stats.unique_cases} · Duplicatas
+                    removidas: {result.stats.duplicates_removed}
+                    {result.stats.quarantined != null && (
+                      <> · Quarentena: {result.stats.quarantined}</>
+                    )}
+                  </p>
+                )}
+              </div>
             )}
-        </DefaultLayout>
-    );
+            {statusError && <p className="mt-2 text-sm text-red-600">{statusError}</p>}
+            {!loadingStatus && status && (
+              <p className="mt-4 text-center text-xs text-gray-500 dark:text-bodydark2">
+                Base: {status.total} registros · Anos {(status.available_years ?? []).join(', ')} ·
+                Última notificação {status.latest_notific ?? '—'}
+              </p>
+            )}
+          </div>
+        )}
+
+        {tab === 'erros' && <ErrorsManager />}
+      </div>
+    </DefaultLayout>
+  );
+};
+
+function Modal({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-md rounded-xl bg-white dark:bg-boxdark p-6 shadow-2xl">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-black dark:text-white">{title}</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Fechar"
+            className="rounded px-2 py-1 text-xl text-gray-500 hover:bg-gray-100 dark:text-bodydark2 dark:hover:bg-meta-4"
+          >
+            &times;
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
 }
+
+// Badge por categoria de erro (cores e vocabulário da referência).
+const CATEGORY_BADGE: Record<string, string> = {
+  'Data faltando': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  'Bairro faltando': 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+  'Sexo não informado': 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400',
+  'Classificação faltando':
+    'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+  'Evolução não informada': 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
+  'Data inválida': 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-500',
+  'Valor inválido': 'bg-gray-100 text-gray-700 dark:bg-meta-4 dark:text-bodydark1',
+  'Campo obrigatório ausente':
+    'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+};
+const DEFAULT_BADGE = 'bg-gray-100 text-gray-700 dark:bg-meta-4 dark:text-bodydark1';
+
+// Lista fixa de problemas (como na referência), sempre visível.
+const PROBLEMAS = [
+  'Data faltando',
+  'Bairro faltando',
+  'Sexo não informado',
+  'Classificação faltando',
+  'Evolução não informada',
+];
+
+function categoryBadge(category: string | null): string {
+  if (!category) return DEFAULT_BADGE;
+  if (CATEGORY_BADGE[category]) return CATEGORY_BADGE[category];
+  if (category.includes('Data')) return CATEGORY_BADGE['Data inválida'];
+  return DEFAULT_BADGE;
+}
+
+function formatDateBR(iso: unknown): string {
+  if (typeof iso !== 'string' || !iso) return '—';
+  const parts = iso.slice(0, 10).split('-');
+  if (parts.length !== 3) return String(iso);
+  return `${parts[2]}/${parts[1]}/${parts[0]}`;
+}
+
+function isoToBR(iso: string): string {
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+// Agente viral derivado da CLASSI_FIN (equivale à "doença" da referência:
+// SRAG é a síndrome; o agente é a doença).
+const AGENTS = [
+  { value: '', label: 'Todos os agentes' },
+  { value: 'INFLUENZA', label: 'Influenza' },
+  { value: 'COVID-19', label: 'Covid-19' },
+  { value: 'OUTRO_VIRUS', label: 'Outro vírus' },
+  { value: 'OUTRO_AGENTE', label: 'Outro agente' },
+  { value: 'NAO_ESPECIFICADO', label: 'Não especificado' },
+];
+
+function agentLabel(code: unknown): string {
+  return AGENTS.find((a) => a.value === code)?.label ?? 'Não especificado';
+}
+
+interface ErrorsFilterState {
+  category: string;
+  agent: string;
+  startDate: string;
+  endDate: string;
+}
+
+function activeFiltersSummary(
+  filters: ErrorsFilterState,
+  categoryLabel: string,
+): string {
+  const parts: string[] = [];
+  if (filters.category) parts.push(`Problema: ${categoryLabel}`);
+  if (filters.agent) parts.push(`Agente: ${agentLabel(filters.agent)}`);
+  if (filters.startDate) parts.push(`De: ${isoToBR(filters.startDate)}`);
+  if (filters.endDate) parts.push(`Até: ${isoToBR(filters.endDate)}`);
+  return parts.join(' | ');
+}
+
+function errorsPdfParams(useFilters: boolean, filters: ErrorsFilterState) {
+  if (!useFilters) return {};
+  return {
+    category: filters.category || undefined,
+    agent: filters.agent || undefined,
+    start_date: filters.startDate || undefined,
+    end_date: filters.endDate || undefined,
+  };
+}
+
+function problemCount(data: ErrorsResponse | null, problem: string): number | null {
+  return (data?.categories ?? []).find((c) => c.category === problem)?.count ?? null;
+}
+
+function ExportPdfModal({
+  hasAnyFilter,
+  summary,
+  pdfLoading,
+  pdfError,
+  onExport,
+  onClose,
+}: {
+  hasAnyFilter: boolean;
+  summary: string;
+  pdfLoading: boolean;
+  pdfError: string | null;
+  onExport: (useFilters: boolean) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Modal title="Exportar relatório PDF" onClose={onClose}>
+      {hasAnyFilter ? (
+        <>
+          <p className="text-sm text-gray-600 dark:text-bodydark mb-1">
+            Você possui filtros ativos. Como deseja exportar?
+          </p>
+          <p className="text-xs text-indigo-600 dark:text-indigo-400 font-medium mb-4">{summary}</p>
+          <div className="flex flex-col gap-3">
+            <button
+              type="button"
+              onClick={() => onExport(true)}
+              disabled={pdfLoading}
+              className="flex items-center justify-center gap-2 rounded-lg border-2 border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 px-4 py-3 text-sm font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 disabled:opacity-60 transition"
+            >
+              {pdfLoading ? 'Gerando PDF…' : 'Exportar apenas com os filtros ativos'}
+            </button>
+            <button
+              type="button"
+              onClick={() => onExport(false)}
+              disabled={pdfLoading}
+              className="flex items-center justify-center gap-2 rounded-lg border border-gray-300 dark:border-strokedark px-4 py-3 text-sm font-medium text-gray-700 dark:text-bodydark hover:bg-gray-50 dark:hover:bg-meta-4 disabled:opacity-60 transition"
+            >
+              Exportar todos os dados com erros
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="text-sm text-gray-600 dark:text-bodydark mb-5">
+            Nenhum filtro aplicado. Deseja exportar <strong>todos os dados com erros</strong>?
+          </p>
+          <button
+            type="button"
+            onClick={() => onExport(false)}
+            disabled={pdfLoading}
+            className="w-full flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60 transition"
+          >
+            {pdfLoading ? 'Gerando PDF...' : 'Sim, exportar todos'}
+          </button>
+        </>
+      )}
+      {pdfError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{pdfError}</p>}
+      <button
+        type="button"
+        onClick={onClose}
+        disabled={pdfLoading}
+        className="mt-3 w-full rounded-lg px-4 py-2 text-sm text-gray-500 dark:text-bodydark2 hover:bg-gray-100 dark:hover:bg-meta-4 disabled:opacity-60 transition"
+      >
+        Cancelar
+      </button>
+    </Modal>
+  );
+}
+
+function ErrorsManager() {
+  const [category, setCategory] = useState('');
+  const [agent, setAgent] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [page, setPage] = useState(1);
+
+  const [data, setData] = useState<ErrorsResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const [pdfOpen, setPdfOpen] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+
+  const fetchErrors = useCallback(
+    async (
+      nextPage: number,
+      nextCategory: string,
+      nextAgent: string,
+      nextStart: string,
+      nextEnd: string,
+    ) => {
+      setLoading(true);
+      try {
+        setData(
+          await getManageErrors({
+            page: nextPage,
+            page_size: 20,
+            category: nextCategory || undefined,
+            agent: nextAgent || undefined,
+            start_date: nextStart || undefined,
+            end_date: nextEnd || undefined,
+          }),
+        );
+        setPage(nextPage);
+      } catch {
+        /* silencioso, como na referência */
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset on filter change
+  useEffect(() => {
+    setPage(1);
+  }, [category, agent, startDate, endDate]);
+
+  useEffect(() => {
+    fetchErrors(page, category, agent, startDate, endDate);
+  }, [page, category, agent, startDate, endDate, fetchErrors]);
+
+  async function handleExportPdf(useFilters: boolean) {
+    setPdfLoading(true);
+    setPdfError(null);
+    try {
+      await downloadErrorsPdf(errorsPdfParams(useFilters, { category, agent, startDate, endDate }));
+      setPdfOpen(false);
+    } catch {
+      setPdfError('Erro ao gerar o PDF.');
+    } finally {
+      setPdfLoading(false);
+    }
+  }
+
+  const hasAnyFilter = !!(category || agent || startDate || endDate);
+  const categoryLabel =
+    (data?.categories ?? []).find((c) => c.category === category)?.category ?? category;
+
+  const thCls =
+    'px-3 py-2 text-left text-xs font-semibold text-gray-500 dark:text-bodydark2 uppercase tracking-wide';
+  const tdCls = 'px-3 py-2 text-sm text-gray-700 dark:text-bodydark whitespace-nowrap';
+
+  const totalElements = data?.total ?? 0;
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1;
+
+  return (
+    <>
+      <div className="rounded-lg border border-gray-200 dark:border-strokedark bg-white dark:bg-boxdark p-4 mb-5 shadow-sm">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1">
+            <label
+              htmlFor="gd-category"
+              className="text-xs font-medium text-gray-500 dark:text-bodydark2 uppercase tracking-wide"
+            >
+              Problema
+            </label>
+            <select
+              id="gd-category"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="rounded border border-gray-300 dark:border-form-strokedark bg-white dark:bg-form-input text-gray-800 dark:text-bodydark px-3 py-1.5 text-sm w-52 focus:border-indigo-500 focus:outline-none"
+            >
+              <option value="">Todos os problemas</option>
+              {PROBLEMAS.map((p) => {
+                const count = problemCount(data, p);
+                return (
+                  <option key={p} value={p}>
+                    {p}
+                    {count != null ? ` (${count})` : ''}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label
+              htmlFor="gd-agent"
+              className="text-xs font-medium text-gray-500 dark:text-bodydark2 uppercase tracking-wide"
+            >
+              Agente
+            </label>
+            <select
+              id="gd-agent"
+              value={agent}
+              onChange={(e) => setAgent(e.target.value)}
+              className="rounded border border-gray-300 dark:border-form-strokedark bg-white dark:bg-form-input text-gray-800 dark:text-bodydark px-3 py-1.5 text-sm w-44 focus:border-indigo-500 focus:outline-none"
+            >
+              {AGENTS.map((a) => (
+                <option key={a.value} value={a.value}>
+                  {a.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label
+              htmlFor="gd-start"
+              className="text-xs font-medium text-gray-500 dark:text-bodydark2 uppercase tracking-wide"
+            >
+              Data início
+            </label>
+            <input
+              id="gd-start"
+              type="date"
+              value={startDate}
+              max={endDate || undefined}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="rounded border border-gray-300 dark:border-form-strokedark bg-white dark:bg-form-input text-gray-800 dark:text-bodydark px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label
+              htmlFor="gd-end"
+              className="text-xs font-medium text-gray-500 dark:text-bodydark2 uppercase tracking-wide"
+            >
+              Data fim
+            </label>
+            <input
+              id="gd-end"
+              type="date"
+              value={endDate}
+              min={startDate || undefined}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="rounded border border-gray-300 dark:border-form-strokedark bg-white dark:bg-form-input text-gray-800 dark:text-bodydark px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+            />
+          </div>
+
+          {hasAnyFilter && (
+            <button type="button"
+              onClick={() => {
+                setCategory('');
+                setAgent('');
+                setStartDate('');
+                setEndDate('');
+              }}
+              className="rounded border border-gray-300 dark:border-strokedark px-3 py-1.5 text-sm text-gray-500 dark:text-bodydark2 hover:bg-gray-100 dark:hover:bg-meta-4 transition"
+            >
+              Limpar filtros
+            </button>
+          )}
+
+          <button type="button"
+            onClick={() => {
+              setPdfError(null);
+              setPdfOpen(true);
+            }}
+            className="ml-auto flex items-center gap-2 rounded bg-red-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-700 transition"
+          >
+            <svg aria-hidden="true"
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"
+              />
+            </svg>
+            Exportar PDF
+          </button>
+        </div>
+
+        {hasAnyFilter && (
+          <p className="mt-3 text-xs text-indigo-600 dark:text-indigo-400 font-medium">
+            Filtros ativos: {activeFiltersSummary({ category, agent, startDate, endDate }, categoryLabel)}
+          </p>
+        )}
+      </div>
+
+      <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-strokedark bg-white dark:bg-boxdark shadow-sm">
+        {loading ? (
+          <div className="flex justify-center items-center py-16">
+            <svg aria-hidden="true" className="animate-spin h-8 w-8 text-indigo-500" viewBox="0 0 24 24">
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+              />
+            </svg>
+          </div>
+        ) : totalElements === 0 ? (
+          <p className="py-16 text-center text-gray-400 dark:text-bodydark2">
+            Nenhum registro encontrado.
+          </p>
+        ) : (
+          <table className="min-w-full">
+            <thead className="bg-gray-50 dark:bg-meta-4 border-b border-gray-200 dark:border-strokedark">
+              <tr>
+                <th className={thCls}>Agente</th>
+                <th className={thCls}>Data Notif.</th>
+                <th className={thCls}>Bairro</th>
+                <th className={thCls}>Sexo</th>
+                <th className={thCls}>Classificação</th>
+                <th className={thCls}>Evolução</th>
+                <th className={thCls}>Sem. Epid.</th>
+                <th className={thCls}>Problema</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-strokedark">
+              {(data?.items ?? []).map((item: QuarantineItem) => {
+                const raw = (item.raw_record ?? {}) as Record<string, unknown>;
+                const str = (v: unknown) =>
+                  v === null || v === undefined || v === '' ? '—' : String(v);
+                return (
+                  <tr
+                    key={item.id}
+                    className="hover:bg-gray-50 dark:hover:bg-meta-4 transition-colors"
+                  >
+                    <td className={tdCls}>{agentLabel(item.agente)}</td>
+                    <td className={tdCls}>{formatDateBR(raw.DT_NOTIFIC)}</td>
+                    <td className={tdCls}>
+                      {str((raw.NM_BAIRRO as string) || (raw.BAIRRO_REF as string))}
+                    </td>
+                    <td className={tdCls}>{str(raw.CS_SEXO)}</td>
+                    <td className={tdCls}>{str(raw.CLASSI_FIN)}</td>
+                    <td className={tdCls}>{str(raw.EVOLUCAO)}</td>
+                    <td className={`${tdCls} text-center`}>{item.semana_epidemiologica ?? '—'}</td>
+                    <td className={tdCls}>
+                      <span
+                        title={item.error_detail ?? ''}
+                        className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${categoryBadge(item.error_category)}`}
+                      >
+                        {item.error_category ?? 'Outros'}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4 text-sm text-gray-600 dark:text-bodydark">
+          <span>
+            {totalElements} registros — Página {page} de {totalPages}
+          </span>
+          <div className="flex gap-2">
+            <button type="button"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className="rounded border border-gray-300 dark:border-strokedark px-3 py-1 text-gray-600 dark:text-bodydark hover:bg-gray-100 dark:hover:bg-meta-4 disabled:opacity-40 transition"
+            >
+              ← Anterior
+            </button>
+            <button type="button"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              className="rounded border border-gray-300 dark:border-strokedark px-3 py-1 text-gray-600 dark:text-bodydark hover:bg-gray-100 dark:hover:bg-meta-4 disabled:opacity-40 transition"
+            >
+              Próxima →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {pdfOpen && (
+        <ExportPdfModal
+          hasAnyFilter={hasAnyFilter}
+          summary={activeFiltersSummary({ category, agent, startDate, endDate }, categoryLabel)}
+          pdfLoading={pdfLoading}
+          pdfError={pdfError}
+          onExport={handleExportPdf}
+          onClose={() => !pdfLoading && setPdfOpen(false)}
+        />
+      )}
+    </>
+  );
+}
+
+export default GerenciarDados;

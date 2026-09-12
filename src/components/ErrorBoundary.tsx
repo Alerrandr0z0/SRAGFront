@@ -1,4 +1,4 @@
-import { Component, ReactNode } from 'react';
+import { Component, type ReactNode } from 'react';
 
 interface Props {
   children: ReactNode;
@@ -31,10 +31,12 @@ class ErrorBoundary extends Component<Props, State> {
           <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
             {this.state.error?.message}
           </pre>
-          <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#666', fontSize: 12 }}>
+          <pre
+            style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#666', fontSize: 12 }}
+          >
             {this.state.error?.stack}
           </pre>
-          <button onClick={() => this.setState({ hasError: false, error: null })}>
+          <button type="button" onClick={() => this.setState({ hasError: false, error: null })}>
             Tentar novamente
           </button>
         </div>

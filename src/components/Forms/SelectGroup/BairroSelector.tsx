@@ -1,12 +1,17 @@
-import React, { useState } from 'react';
+import type React from 'react';
+import { useState } from 'react';
 
 interface BairroSelectorProps {
   bairroSelected: string;
-  setBairroSelected: Function;
+  setBairroSelected: (value: string) => void;
   bairros: string[];
 }
 
-const BairroSelector: React.FC<BairroSelectorProps> = ({ bairroSelected, setBairroSelected, bairros = [] }) => {
+const BairroSelector: React.FC<BairroSelectorProps> = ({
+  bairroSelected,
+  setBairroSelected,
+  bairros = [],
+}) => {
   const [isOptionSelected, setIsOptionSelected] = useState<boolean>(false);
 
   return (

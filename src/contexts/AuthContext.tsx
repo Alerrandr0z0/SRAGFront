@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import type React from 'react';
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 type UserRole = 'USER' | 'ADMIN';
@@ -30,12 +31,40 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  
+
   const navigate = useNavigate();
 
-  const baseApiUrl = process.env.REACT_APP_API_URL || "";
+  const baseApiUrl = import.meta.env.REACT_APP_API_URL || '';
 
-  const checkAuthStatus = () => {
+  const login = (accessToken: string, refreshToken: string, userData: User) => {
+    try {
+      localStorage.setItem('accessToken', accessToken);
+      localStorage.setItem('token', refreshToken);
+      localStorage.setItem('userName', userData.fullName);
+      localStorage.setItem('userCpf', userData.cpf);
+      localStorage.setItem('userRole', userData.role);
+
+      setUser(userData);
+      setIsAuthenticated(true);
+    } catch (error) {
+      console.error('Error during login:', error);
+      throw new Error('Failed to save authentication data');
+    }
+  };
+
+  const clearAuth = useCallback(() => {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('token');
+    localStorage.removeItem('userName');
+    localStorage.removeItem('userCpf');
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('yearSelected');
+    localStorage.removeItem('dashboardScopeSelected');
+    setUser(null);
+    setIsAuthenticated(false);
+  }, []);
+
+  useEffect(() => {
     try {
       const accessToken = localStorage.getItem('accessToken');
       const refreshToken = localStorage.getItem('token');
@@ -43,10 +72,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const userRole = parseRole(localStorage.getItem('userRole'));
 
       if (accessToken && refreshToken && userName) {
-        setUser({ 
-          fullName: userName, 
+        setUser({
+          fullName: userName,
           cpf: localStorage.getItem('userCpf') || '',
-          role: userRole
+          role: userRole,
         });
         setIsAuthenticated(true);
       } else {
@@ -58,40 +87,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const login = (accessToken: string, refreshToken: string, userData: User) => {
-    try {
-      console.log('AuthContext: Logging in user', userData);
-      
-      localStorage.setItem('accessToken', accessToken);
-      localStorage.setItem('token', refreshToken);
-      localStorage.setItem('userName', userData.fullName);
-      localStorage.setItem('userCpf', userData.cpf);
-      localStorage.setItem('userRole', userData.role);
-      
-      setUser(userData);
-      setIsAuthenticated(true);
-      
-      console.log('AuthContext: Login successful, user is now authenticated');
-    } catch (error) {
-      console.error('Error during login:', error);
-      throw new Error('Failed to save authentication data');
-    }
-  };
-
-  const clearAuth = () => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('token');
-    localStorage.removeItem('userName');
-    localStorage.removeItem('userCpf');
-    localStorage.removeItem('userRole');
-    localStorage.removeItem('yearSelected');
-    localStorage.removeItem('agravoSelected');
-    localStorage.removeItem('dashboardScopeSelected');
-    setUser(null);
-    setIsAuthenticated(false);
-  };
+  }, [clearAuth]);
 
   const logout = () => {
     try {
@@ -117,10 +113,40 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsAuthenticated(true);
   };
 
+  function storeRefreshedSession(data: {
+    jwtToken?: string;
+    refreshToken?: string;
+    fullName?: string;
+    cpf?: string;
+    role?: string;
+  }): boolean {
+    if (!data.jwtToken) return false;
+
+    localStorage.setItem('accessToken', data.jwtToken);
+
+    if (data.refreshToken) {
+      localStorage.setItem('token', data.refreshToken);
+    }
+
+    if (data.fullName) {
+      localStorage.setItem('userName', data.fullName);
+    }
+
+    if (data.cpf) {
+      localStorage.setItem('userCpf', data.cpf);
+    }
+
+    if (data.role) {
+      localStorage.setItem('userRole', parseRole(data.role));
+    }
+
+    return true;
+  }
+
   const refreshTokens = async (): Promise<boolean> => {
     try {
       const refreshToken = localStorage.getItem('token');
-      
+
       if (!refreshToken) {
         throw new Error('No refresh token available');
       }
@@ -131,8 +157,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          token: refreshToken
-        })
+          token: refreshToken,
+        }),
       });
 
       if (!response.ok) {
@@ -140,46 +166,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       const data = await response.json();
-      
-      if (data.jwtToken) {
-        localStorage.setItem('accessToken', data.jwtToken);
-        
-        // If a new refresh token is provided, update it
-        if (data.refreshToken) {
-          localStorage.setItem('token', data.refreshToken);
-        }
 
-        if (data.fullName) {
-          localStorage.setItem('userName', data.fullName);
-        }
-
-        if (data.cpf) {
-          localStorage.setItem('userCpf', data.cpf);
-        }
-
-        if (data.role) {
-          localStorage.setItem('userRole', parseRole(data.role));
-        }
-        
-        return true;
-      } else {
+      if (!storeRefreshedSession(data)) {
         throw new Error('Invalid response from token refresh');
       }
+
+      return true;
     } catch (error) {
       console.error('Token refresh failed:', error);
-      
-      // If refresh fails, log the user out
+
       setTimeout(() => {
         logout();
       }, 100);
-      
+
       return false;
     }
   };
-
-  useEffect(() => {
-    checkAuthStatus();
-  }, []);
 
   const value: AuthContextType = {
     user,
@@ -189,14 +191,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     login,
     updateSession,
     logout,
-    refreshTokens
+    refreshTokens,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = (): AuthContextType => {

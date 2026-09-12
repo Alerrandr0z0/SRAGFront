@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useRef, ReactNode } from 'react';
+import type React from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import Header from '../components/Header/index';
 import Sidebar from '../components/Sidebar/index';
 
 const DefaultLayout: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
-    () => localStorage.getItem('sidebar-collapsed') === 'true'
+    () => localStorage.getItem('sidebar-collapsed') === 'true',
   );
 
   const contentRef = useRef<HTMLDivElement>(null);
@@ -30,12 +31,13 @@ const DefaultLayout: React.FC<{ children: ReactNode }> = ({ children }) => {
           setSidebarCollapsed={setSidebarCollapsed}
         />
 
-        <div ref={contentRef} className="relative flex flex-1 min-w-0 flex-col overflow-y-auto overflow-x-hidden">
+        <div
+          ref={contentRef}
+          className="relative flex flex-1 min-w-0 flex-col overflow-y-auto overflow-x-hidden"
+        >
           <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
           <main>
-            <div className="mx-auto max-w-screen-2xl p-4 md:p-6 2xl:p-10">
-              {children}
-            </div>
+            <div className="mx-auto max-w-screen-2xl p-4 md:p-6 2xl:p-10">{children}</div>
           </main>
         </div>
       </div>

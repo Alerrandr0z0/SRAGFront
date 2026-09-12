@@ -1,11 +1,42 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { type FormEvent, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
+import {
+  MAX_NAME_LENGTH,
+  MAX_PASSWORD_LENGTH,
+  cpfMask,
+  sanitizePassword,
+  sanitizeSafeText,
+} from '../common/input/InputSecurity';
 import Breadcrumb from '../components/Breadcrumbs/Breadcrumb';
-import { cpfMask } from '../common/input/CpfMask';
-import { MAX_NAME_LENGTH, MAX_PASSWORD_LENGTH, sanitizePassword, sanitizeSafeText } from '../common/input/InputSecurity';
 import { useAuth } from '../contexts/AuthContext';
 import DefaultLayout from '../layout/DefaultLayout';
 import api from '../service/api/Api';
+
+function passwordChangeError(
+  currentPassword: string,
+  newPassword: string,
+  confirmNewPassword: string,
+): string | null {
+  if (!currentPassword) return 'Informe a senha atual para alterar a senha.';
+  if (newPassword.length < 6 || confirmNewPassword.length < 6)
+    return 'A nova senha deve ter pelo menos 6 caracteres.';
+  if (newPassword !== confirmNewPassword) return 'A confirmação da nova senha não confere.';
+  return null;
+}
+
+function profileErrorMessage(error: unknown): string {
+  const responseData =
+    typeof error === 'object' && error !== null
+      ? (error as { response?: { data?: { errors?: unknown; message?: unknown } } }).response
+          ?.data
+      : undefined;
+  const firstError = Array.isArray(responseData?.errors) ? responseData.errors[0] : null;
+  return normalizeApiMessage(
+    (typeof firstError === 'string' ? firstError : null) ||
+      (typeof responseData?.message === 'string' ? responseData.message : null) ||
+      'Não foi possível atualizar o perfil.',
+  );
+}
 
 const Profile = () => {
   const { user, updateSession } = useAuth();
@@ -29,18 +60,9 @@ const Profile = () => {
     }
 
     if (passwordChangeRequested) {
-      if (!currentPassword) {
-        toast.error('Informe a senha atual para alterar a senha.');
-        return;
-      }
-
-      if (newPassword.length < 6 || confirmNewPassword.length < 6) {
-        toast.error('A nova senha deve ter pelo menos 6 caracteres.');
-        return;
-      }
-
-      if (newPassword !== confirmNewPassword) {
-        toast.error('A confirmação da nova senha não confere.');
+      const validationError = passwordChangeError(currentPassword, newPassword, confirmNewPassword);
+      if (validationError) {
+        toast.error(validationError);
         return;
       }
     }
@@ -71,20 +93,15 @@ const Profile = () => {
       setCpf(cpfMask(response.data.cpf));
       setFullName(response.data.fullName);
       toast.success('Perfil atualizado com sucesso.');
-    } catch (error: any) {
-      const message = normalizeApiMessage(
-        (Array.isArray(error?.response?.data?.errors) ? error.response.data.errors[0] : null) ||
-        (typeof error?.response?.data?.message === 'string' ? error.response.data.message : null) ||
-        'Não foi possível atualizar o perfil.',
-      );
-
-      toast.error(message);
+    } catch (error) {
+      toast.error(profileErrorMessage(error));
     } finally {
       setLoading(false);
     }
   }
 
-  const inputClassName = 'w-full rounded-xl border border-stroke bg-white px-4 py-3 text-black outline-none transition focus:border-primary dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary';
+  const inputClassName =
+    'w-full rounded-xl border border-stroke bg-white px-4 py-3 text-black outline-none transition focus:border-primary dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary';
 
   return (
     <DefaultLayout>
@@ -95,21 +112,28 @@ const Profile = () => {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-medium uppercase tracking-[0.2em] text-primary">Conta</p>
-              <h2 className="mt-2 text-3xl font-semibold text-black dark:text-white">{user?.fullName ?? 'Usuário'}</h2>
+              <h2 className="mt-2 text-3xl font-semibold text-black dark:text-white">
+                {user?.fullName ?? 'Usuário'}
+              </h2>
               <p className="mt-2 text-sm text-gray-600 dark:text-bodydark2">
-                Atualize seus dados cadastrais e, se quiser, altere sua senha com confirmação da senha atual.
+                Atualize seus dados cadastrais e, se quiser, altere sua senha com confirmação da
+                senha atual.
               </p>
             </div>
 
             <div className="grid grid-cols-1 gap-3 sm:min-w-[220px]">
               <div className="rounded-xl border border-stroke bg-white/90 px-4 py-3 dark:border-strokedark dark:bg-boxdark/70">
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-bodydark2">Perfil</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-bodydark2">
+                  Perfil
+                </p>
                 <p className="mt-1 text-sm font-medium text-black dark:text-white">
                   {user?.role === 'ADMIN' ? 'Administrador' : 'Usuário comum'}
                 </p>
               </div>
               <div className="rounded-xl border border-stroke bg-white/90 px-4 py-3 dark:border-strokedark dark:bg-boxdark/70">
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-bodydark2">CPF atual</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-bodydark2">
+                  CPF atual
+                </p>
                 <p className="mt-1 text-sm font-medium text-black dark:text-white">{cpf || '-'}</p>
               </div>
             </div>
@@ -120,15 +144,22 @@ const Profile = () => {
           <div className="border-b border-stroke px-6 py-5 dark:border-strokedark">
             <h3 className="text-xl font-semibold text-black dark:text-white">Editar dados</h3>
             <p className="mt-1 text-sm text-gray-600 dark:text-bodydark2">
-              Nome e CPF podem ser atualizados a qualquer momento. Para mudar a senha, informe primeiro a senha atual.
+              Nome e CPF podem ser atualizados a qualquer momento. Para mudar a senha, informe
+              primeiro a senha atual.
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="p-6 sm:p-8">
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
               <div className="lg:col-span-2">
-                <label className="mb-2.5 block font-medium text-black dark:text-white">Nome completo</label>
+                <label
+                  htmlFor="profile-name"
+                  className="mb-2.5 block font-medium text-black dark:text-white"
+                >
+                  Nome completo
+                </label>
                 <input
+                  id="profile-name"
                   type="text"
                   value={fullName}
                   onChange={(event) => setFullName(sanitizeSafeText(event.target.value))}
@@ -140,8 +171,14 @@ const Profile = () => {
               </div>
 
               <div>
-                <label className="mb-2.5 block font-medium text-black dark:text-white">CPF</label>
+                <label
+                  htmlFor="profile-cpf"
+                  className="mb-2.5 block font-medium text-black dark:text-white"
+                >
+                  CPF
+                </label>
                 <input
+                  id="profile-cpf"
                   type="text"
                   value={cpf}
                   onChange={(event) => setCpf(cpfMask(event.target.value))}
@@ -163,8 +200,14 @@ const Profile = () => {
 
             <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-3">
               <div>
-                <label className="mb-2.5 block font-medium text-black dark:text-white">Senha atual</label>
+                <label
+                  htmlFor="profile-current-password"
+                  className="mb-2.5 block font-medium text-black dark:text-white"
+                >
+                  Senha atual
+                </label>
                 <input
+                  id="profile-current-password"
                   type="password"
                   value={currentPassword}
                   onChange={(event) => setCurrentPassword(sanitizePassword(event.target.value))}
@@ -175,8 +218,14 @@ const Profile = () => {
               </div>
 
               <div>
-                <label className="mb-2.5 block font-medium text-black dark:text-white">Nova senha</label>
+                <label
+                  htmlFor="profile-new-password"
+                  className="mb-2.5 block font-medium text-black dark:text-white"
+                >
+                  Nova senha
+                </label>
                 <input
+                  id="profile-new-password"
                   type="password"
                   value={newPassword}
                   onChange={(event) => setNewPassword(sanitizePassword(event.target.value))}
@@ -187,8 +236,14 @@ const Profile = () => {
               </div>
 
               <div>
-                <label className="mb-2.5 block font-medium text-black dark:text-white">Confirmar nova senha</label>
+                <label
+                  htmlFor="profile-confirm-password"
+                  className="mb-2.5 block font-medium text-black dark:text-white"
+                >
+                  Confirmar nova senha
+                </label>
                 <input
+                  id="profile-confirm-password"
                   type="password"
                   value={confirmNewPassword}
                   onChange={(event) => setConfirmNewPassword(sanitizePassword(event.target.value))}
@@ -209,9 +264,20 @@ const Profile = () => {
                 className="inline-flex min-w-[180px] items-center justify-center rounded-xl bg-primary px-5 py-3 font-medium text-white transition hover:bg-opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loading && (
-                  <svg className="mr-2 h-5 w-5 animate-spin" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  <svg aria-hidden="true" className="mr-2 h-5 w-5 animate-spin" viewBox="0 0 24 24">
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                    />
                   </svg>
                 )}
                 Salvar alterações

@@ -1,94 +1,59 @@
-# TailAdmin React - Free React Tailwind Admin Dashboard Template
+# SRAG Front — Vigilância SIVEP-Gripe (Mossoró)
 
-TailAdmin is a free and open-source admin dashboard template built on **React and Tailwind CSS**, providing developers with everything they need to create a comprehensive, data-driven back-end, 
-dashboard, or admin panel solution for upcoming web projects.
+Frontend React dos dashboards de SRAG: notificações, óbitos, vacinação, território por bairro e gerenciamento de dados. Consome o `SRAGBack` (FastAPI, JWT próprio) — : autenticação, dados e PDFs vêm da API.
 
-[![tailwind react admin template](https://ucarecdn.com/d2a6daed-eb9c-4c2f-8a95-4419c450e23a/tailadminreact.jpg)](https://react-demo.tailadmin.com/)
+## Stack
 
+React 18 + Vite 4 + TypeScript 5 (strict) + Tailwind 3 · ApexCharts · Leaflet/react-leaflet · axios · react-router-dom · react-hot-toast · flowbite-react (modais) · Biome 2 (lint/format) · Vitest 4.
 
-With TailAdmin, you get access to all the necessary dashboard UI components, elements, and pages required to build a feature-rich and complete dashboard or admin panel. Whether you're building dashboard or admin panel for a complex web application or a simple website, TailAdmin is the perfect solution to help you get up and running quickly.
+## Pré-requisitos
 
-### [✨ Visit Website](https://tailadmin.com/)
+Node 20+ e o backend em `http://127.0.0.1:8001` (ou ajuste o proxy no `vite.config.ts`).
 
-### [🚀 PRO Demo](https://react-demo.tailadmin.com/)
-### [🚀 FREE Demo](https://free-react-demo.tailadmin.com/)
+## Setup
 
-### TailAdmin React PRO vs TailAdmin React FREE Comparison 📊
+```bash
+npm install
+cp .env.example .env   # opcional; o padrão já usa /api
+npm run dev            # Vite dev (default :5173), /api → 127.0.0.1:8001
+```
 
-#### [TailAdmin React PRO](https://react-demo.tailadmin.com/)
-- 4 Unique Dashboards: Analytics, Ecommerce, Marketing, and CRM (More will be added)
-- 120+ Dashboard UI Components
-- 200+ Total UI Elements
-- 45+ HTML Files
-- All Essential Elements and Files
-- Full Figma Design Source - As Shown on Demo
+Variáveis (`envPrefix: 'REACT_APP_'`):
 
-___
+| Var | Dev | Produção (Docker) |
+|---|---|---|
+| `REACT_APP_API_URL` | `/api` (proxy do Vite) | `/api` (proxy do nginx) |
 
-#### [TailAdmin React FREE](https://free-react-demo.tailadmin.com/)
-- 1 Unique Dashboard
-- 30+ Dashboard UI Components
-- 50+ Total UI Elements 
-- 10+ HTML Files
-- TypeScript Support
-- Basic UI Kit Elements and Files
-- Figma Design Source - Free Sample
-___
+## Verificação e build
 
-### [⬇️ Download Now](https://tailadmin.com/download)
+```bash
+make check   # biome lint + tsc --noEmit + vitest (tests/unit)
+make build   # vite build → dist/
+```
 
-### [⚡ Get PRO Version](https://tailadmin.com/pricing)
+Scripts npm equivalentes: `lint`, `typecheck`, `test:unit`, `check`, `build`. Regras: Biome `recommended` + complexidade cognitiva ≤ 15, `tsc` sem erro, 19 testes unitários em `tests/unit` (filtros, mappers, chart options).
 
-### [📄 Documentation/Installation](https://tailadmin.com/docs)
+## Estrutura
 
-### [🖌️ TailAdmin Figma Free Sample](https://www.figma.com/community/file/1214477970819985778)
+```
+src/
+  App.tsx                 # rotas (guards em ProtectedRoute)
+  main.tsx                # entry (Toaster, AuthProvider, ErrorBoundary)
+  pages/                  # Dashboard/* (Vigilância, Sociodemográfica, Gerenciar), Authentication/*, Profile
+  components/             # Charts/*, Maps/BairrosMap, Tables/BaseTable, Forms/SelectGroup/*, Modals/*, Header, Sidebar
+  service/
+    api/                  # Api.tsx (axios + refresh JWT), fetchApiData.tsx (desembrulha {data})
+    srag/                 # sragClient (tipos + chamadas), sragDashboard (orquestra), sragMappers, sragChartOptions, sragFilters
+  contexts/ hooks/ layout/ common/input/  # Auth, useLocalStorage/useColorMode, layouts, sanitize/cpfMask
+  css/ images/logo/       # Tailwind + Satoshi (único asset: Logo.png)
+```
 
-### [👉 TailAdmin HTML Version](https://github.com/TailAdmin/tailadmin-free-tailwind-dashboard-template)
+Camadas: páginas chamam `service/srag/*` (nunca axios direto); `sragClient` espelha os endpoints do backend (`/summary`, `/trends`, `/virus`, `/citizen_bootstrap`, `/vaccination_profile`, `/territory_bootstrap`, `/clinical/*`, `/laboratory_network`, `/manage/errors`, `/reports/*`, `/ingest/*`).
 
-TailAdmin React dashboard template based on Tailwind CSS is a pre-designed starting point for building a web-based dashboard using the React JavaScript library and the Tailwind CSS utility-first framework. This Tailwind CSS + React Dashboard Template - built using Tailwind CSS and **includes pre-built components, such as navigation menus, charts, tables, and forms, which can be easily customized and integrated into a small-to-large React web application**.
+## Rotas
 
-If you're looking for a high-quality **React-Tailwind Dashboard, Admin Panel Template, or UI Kit**, TailAdmin will be the perfect choice for you!
+`/` e `/dashboard/dadosGerais` (Vigilância) · `/dashboard/sociodemografica` · `/dashboard/gerenciar` (upload, com guarda `isAdmin`) · `/perfil` · `/auth/login` · `/usuarios` (ADMIN) · `/auth/registrar → /usuarios` · `* → /`.
 
-## TailAdmin React - Installation
+## Deploy
 
-You'll need to install Node.js >=v14.16+ (Recommended Version) (NPM comes along with it) and TailAdmin uses **Vite** for frontend tooling, to peform installation and building production version, please follow these steps from below:
-
-- Use terminal and navigate to the project (tailadmin-react) root.
-
-- Then run : <code>npm install</code>
-
-- Then run : <code>npm run dev</code>
-
-Now, in the browser go to <code>localhost:5173</code>
-
-**For Production Build**
-Run : <code>npm run build</code>
-
-Default build output directory: /dist
-
-This command will generate a dist as build folder in the root of your template that you can upload to your server.
-
-## Tons of React Tailwind Components for Dashboard
-React and Tailwind are two popular technologies that have taken the web development world by storm. React is a JavaScript library for building user interfaces, while Tailwind is a utility-first CSS framework that makes it easy to style web applications. TailAdmin React Offers 200+ Essential React + Tailwind CSS UI Components that you copy-paste and use with your dashboard projects. That includes - charts, graphs, navbars, tabs, buttons, cards, tables, profile, tabs, forms, modals, app pages, calender, web apps example templates and more... for React and Styled using Tailwind CSS
-
-
-
-## Update Logs
-
-### Version 1.0.6 - [Jan 31, 2024]
-
-#### Enhancements
-
-- **Enhancement 01:** Integrate flatpickr in [Date Picker/Form Elements]
-- **Enhancement 02:** Change color after select an option [Select Element/Form Elements].
-- **Enhancement 03:** Make it functional [Multiselect Dropdown/Form Elements].
-- **Enhancement 04:** Make best value editable [Pricing Table One/Pricing Table].
-- **Enhancement 05:** Rearrange Folder structure.
-
-### Version 1.0.0 - [Apr 28, 2023]
-
-- Add Typescript in TailAdmin React.
-
-### Version 1.0.0 - Initial Release - [Mar 13, 2023]
-
-- Initial release of TailAdmin React.
+`Dockerfile` (build → nginx servindo `dist/`, fallback SPA) + `.github/workflows/deploy.yml` (build/push GHCR → VPS via SSH com healthcheck).

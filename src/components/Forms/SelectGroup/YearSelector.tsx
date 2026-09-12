@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import type React from 'react';
+import { useState } from 'react';
 
 interface YearSelectorProps {
-    yearSelected: string;
-    setYearSelected: Function;
-    minYear?: number;
+  yearSelected: string;
+  setYearSelected: (value: string) => void;
+  minYear?: number;
 }
 
-const YearSelector: React.FC<YearSelectorProps> = ({yearSelected, setYearSelected, minYear}) => {
+const YearSelector: React.FC<YearSelectorProps> = ({ yearSelected, setYearSelected, minYear }) => {
   const [isOptionSelected, setIsOptionSelected] = useState<boolean>(false);
 
   const changeTextColor = () => {
@@ -16,7 +17,7 @@ const YearSelector: React.FC<YearSelectorProps> = ({yearSelected, setYearSelecte
   const currentYear = new Date().getFullYear();
   const firstYear = minYear ?? currentYear - 10;
   const years = Array.from({ length: currentYear - firstYear + 1 }, (_, i) => currentYear - i);
-  
+
   return (
     <div className="mb-4.5">
       <div className="relative z-20 bg-transparent dark:bg-form-input">
@@ -30,6 +31,9 @@ const YearSelector: React.FC<YearSelectorProps> = ({yearSelected, setYearSelecte
             isOptionSelected ? 'text-black dark:text-white' : ''
           }`}
         >
+          <option value="" className="text-body dark:text-bodydark">
+            Todos
+          </option>
           {years.map((year) => (
             <option key={year} value={year} className="text-body dark:text-bodydark">
               {year}

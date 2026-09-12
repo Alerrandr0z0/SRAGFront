@@ -1,11 +1,16 @@
-import React, { FormEvent, useState } from 'react';
+import type React from 'react';
+import { type FormEvent, useState } from 'react';
 import toast from 'react-hot-toast';
-import { AxiosError } from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { cpfMask } from '../../common/input/CpfMask';
-import { MAX_NAME_LENGTH, MAX_PASSWORD_LENGTH, sanitizePassword, sanitizeSafeText } from '../../common/input/InputSecurity';
-import { SuccessModal } from '../Modals/SuccessModal';
+import {
+  MAX_NAME_LENGTH,
+  MAX_PASSWORD_LENGTH,
+  cpfMask,
+  sanitizePassword,
+  sanitizeSafeText,
+} from '../../common/input/InputSecurity';
 import api from '../../service/api/Api';
+import { SuccessModal } from '../Modals/SuccessModal';
 
 interface UserRegistrationFormProps {
   onSuccess?: () => void;
@@ -75,21 +80,38 @@ export default function UserRegistrationForm({ onSuccess }: UserRegistrationForm
     setFormData((prev) => ({ ...prev, role: selectedRole }));
   }
 
+  function passwordValidationError(password: string, confirmPassword: string): string | null {
+    if (password.length < 6) return 'Senha deve ter pelo menos 6 caracteres';
+    if (password !== confirmPassword) return 'Senhas não conferem';
+    return null;
+  }
+
+  function registerErrorMessage(error: unknown): { message: string; forbidden: boolean } {
+    const response =
+      typeof error === 'object' && error !== null
+        ? (error as { response?: { status?: number; data?: unknown } }).response
+        : undefined;
+    let message = 'Erro ao realizar o registro';
+
+    if (response?.status === 400) {
+      message = getApiErrorMessage(response.data, message);
+    }
+
+    if (response?.status === 401 || response?.status === 403) {
+      return { message: 'Você não tem permissão para usar esse recurso!', forbidden: true };
+    }
+
+    return { message, forbidden: false };
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     try {
       event.preventDefault();
 
-      if (password.length < 6) {
-        const message = 'Senha deve ter pelo menos 6 caracteres';
-        setErrorMessage(message);
-        toast.error(message);
-        return;
-      }
-
-      if (password !== confirmPassword) {
-        const message = 'Senhas não conferem';
-        setErrorMessage(message);
-        toast.error(message);
+      const validationError = passwordValidationError(password, confirmPassword);
+      if (validationError) {
+        setErrorMessage(validationError);
+        toast.error(validationError);
         return;
       }
 
@@ -103,22 +125,9 @@ export default function UserRegistrationForm({ onSuccess }: UserRegistrationForm
         resetForm();
         onSuccess?.();
       }
-    } catch (error: AxiosError | any) {
-      const response = error.response;
-      let message = 'Erro ao realizar o registro';
-
-      if (response?.status === 400) {
-        message = getApiErrorMessage(response.data, message);
-      }
-
-      if (response?.status === 401 || response?.status === 403) {
-        message = 'Você não tem permissão para usar esse recurso!';
-        navigate('/auth/login');
-      }
-
-      if (response?.status === 500) {
-        message = 'Erro ao realizar o registro';
-      }
+    } catch (error) {
+      const { message, forbidden } = registerErrorMessage(error);
+      if (forbidden) navigate('/auth/login');
 
       setErrorMessage(message);
       toast.error(message);
@@ -127,15 +136,22 @@ export default function UserRegistrationForm({ onSuccess }: UserRegistrationForm
     }
   }
 
-  const inputClassName = 'w-full rounded-lg border border-stroke bg-white px-4 py-3 text-black outline-none transition focus:border-primary focus-visible:shadow-none dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary';
+  const inputClassName =
+    'w-full rounded-lg border border-stroke bg-white px-4 py-3 text-black outline-none transition focus:border-primary focus-visible:shadow-none dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary';
 
   return (
     <>
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
           <div>
-            <label className="mb-2.5 block font-medium text-black dark:text-white">CPF</label>
+            <label
+              htmlFor="urf-cpf"
+              className="mb-2.5 block font-medium text-black dark:text-white"
+            >
+              CPF
+            </label>
             <input
+              id="urf-cpf"
               type="text"
               placeholder="Ex: 123.456.789-10"
               className={inputClassName}
@@ -149,8 +165,18 @@ export default function UserRegistrationForm({ onSuccess }: UserRegistrationForm
           </div>
 
           <div>
-            <label className="mb-2.5 block font-medium text-black dark:text-white">Tipo de acesso</label>
-            <select value={role} onChange={handleSetRole} className={inputClassName}>
+            <label
+              htmlFor="urf-tipo-de-acesso"
+              className="mb-2.5 block font-medium text-black dark:text-white"
+            >
+              Tipo de acesso
+            </label>
+            <select
+              id="urf-tipo-de-acesso"
+              value={role}
+              onChange={handleSetRole}
+              className={inputClassName}
+            >
               <option value="USER">Usuário comum</option>
               <option value="ADMIN">Administrador</option>
             </select>
@@ -158,8 +184,11 @@ export default function UserRegistrationForm({ onSuccess }: UserRegistrationForm
         </div>
 
         <div>
-          <label className="mb-2.5 block font-medium text-black dark:text-white">Nome</label>
+          <label htmlFor="urf-nome" className="mb-2.5 block font-medium text-black dark:text-white">
+            Nome
+          </label>
           <input
+            id="urf-nome"
             type="text"
             placeholder="Insira o nome do usuário"
             className={inputClassName}
@@ -173,8 +202,14 @@ export default function UserRegistrationForm({ onSuccess }: UserRegistrationForm
 
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
           <div>
-            <label className="mb-2.5 block font-medium text-black dark:text-white">Senha</label>
+            <label
+              htmlFor="urf-senha"
+              className="mb-2.5 block font-medium text-black dark:text-white"
+            >
+              Senha
+            </label>
             <input
+              id="urf-senha"
               type="password"
               placeholder="Senha"
               className={inputClassName}
@@ -188,8 +223,14 @@ export default function UserRegistrationForm({ onSuccess }: UserRegistrationForm
           </div>
 
           <div>
-            <label className="mb-2.5 block font-medium text-black dark:text-white">Confirme a senha</label>
+            <label
+              htmlFor="urf-confirme-a-senha"
+              className="mb-2.5 block font-medium text-black dark:text-white"
+            >
+              Confirme a senha
+            </label>
             <input
+              id="urf-confirme-a-senha"
               type="password"
               placeholder="Repita a senha"
               className={inputClassName}
@@ -219,9 +260,20 @@ export default function UserRegistrationForm({ onSuccess }: UserRegistrationForm
             disabled={loadingData}
           >
             {loadingData && (
-              <svg className="mr-2 h-5 w-5 animate-spin" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              <svg aria-hidden="true" className="mr-2 h-5 w-5 animate-spin" viewBox="0 0 24 24">
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                />
               </svg>
             )}
             Registrar usuário
@@ -239,13 +291,24 @@ export default function UserRegistrationForm({ onSuccess }: UserRegistrationForm
   );
 }
 
-function getApiErrorMessage(data: any, fallback: string) {
-  if (Array.isArray(data?.errors) && data.errors.length > 0) {
-    return data.errors[0];
+function getApiErrorMessage(data: unknown, fallback: string) {
+  if (
+    typeof data === 'object' &&
+    data !== null &&
+    Array.isArray((data as { errors?: unknown }).errors) &&
+    (data as { errors: unknown[] }).errors.length > 0
+  ) {
+    const first = (data as { errors: unknown[] }).errors[0];
+    if (typeof first === 'string') return first;
   }
 
-  if (typeof data?.message === 'string' && data.message.trim()) {
-    return data.message;
+  if (
+    typeof data === 'object' &&
+    data !== null &&
+    typeof (data as { message?: unknown }).message === 'string' &&
+    (data as { message: string }).message.trim()
+  ) {
+    return (data as { message: string }).message;
   }
 
   return fallback;

@@ -8,12 +8,10 @@
   }
 }
 
-@layer components {
-}
-
 /* Impede que o SVG do ApexCharts vaze durante transições de layout */
 .apexcharts-canvas,
 .apexcharts-svg {
+  /* biome-ignore lint/complexity/noImportantStyles: sobrescreve estilo do ApexCharts */
   max-width: 100% !important;
 }
 
@@ -123,7 +121,9 @@ span.flatpickr-weekday,
 }
 .flatpickr-day.inRange {
   @apply dark:!shadow-7;
-  box-shadow: -5px 0 0 #EFF4FB, 5px 0 0 #EFF4FB;
+  box-shadow:
+    -5px 0 0 #eff4fb,
+    5px 0 0 #eff4fb;
 }
 .flatpickr-day.inRange,
 .flatpickr-day.prevMonthDay.inRange,
@@ -197,25 +197,7 @@ span.flatpickr-weekday,
 .taskCheckbox:checked ~ .box span {
   @apply opacity-100;
 }
-.taskCheckbox:checked ~ p {
-  @apply line-through;
-}
-.taskCheckbox:checked ~ .box {
-  @apply bg-primary border-primary dark:border-primary;
-}
-
-.custom-input-date::-webkit-calendar-picker-indicator {
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: 20px;
-}
-.custom-input-date-1::-webkit-calendar-picker-indicator {
-  background-image: url(./images/icon/icon-calendar.svg);
-}
-.custom-input-date-2::-webkit-calendar-picker-indicator {
-  background-image: url(./images/icon/icon-arrow-down.svg);
-}
-
 [x-cloak] {
+  /* biome-ignore lint/complexity/noImportantStyles: convenção do Alpine.js */
   display: none !important;
 }

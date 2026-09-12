@@ -5,18 +5,14 @@ import { useAuth } from '../../contexts/AuthContext';
 const DropdownUser = () => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const authContext = useAuth();
-  const trigger = useRef<any>(null);
-  const dropdown = useRef<any>(null);
+  const trigger = useRef<HTMLAnchorElement>(null);
+  const dropdown = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const clickHandler = ({ target }: MouseEvent) => {
-      if (!dropdown.current) return;
-      if (
-        !dropdownOpen ||
-        dropdown.current.contains(target) ||
-        trigger.current.contains(target)
-      )
-        return;
+      const node = target as Node | null;
+      if (!dropdown.current || !trigger.current) return;
+      if (!dropdownOpen || dropdown.current.contains(node) || trigger.current.contains(node)) return;
       setDropdownOpen(false);
     };
     document.addEventListener('click', clickHandler);
@@ -70,6 +66,7 @@ const DropdownUser = () => {
       {/* <!-- Dropdown Start --> */}
       <div
         ref={dropdown}
+        role="menu"
         onFocus={() => setDropdownOpen(true)}
         onBlur={() => setDropdownOpen(false)}
         className={`absolute right-0 mt-4 flex w-62.5 flex-col rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark ${
@@ -81,7 +78,7 @@ const DropdownUser = () => {
           onClick={() => setDropdownOpen(false)}
           className="flex items-center gap-3.5 px-6 py-4 text-sm font-medium duration-300 ease-in-out hover:text-primary lg:text-base"
         >
-          <svg
+          <svg aria-hidden="true"
             className="fill-current"
             width="22"
             height="22"
@@ -103,11 +100,11 @@ const DropdownUser = () => {
 
         <div className="mx-6 border-t border-stroke dark:border-strokedark" />
 
-        <button 
+        <button type="button"
           onClick={handleLogout}
           className="flex items-center gap-3.5 px-6 py-4 text-sm font-medium duration-300 ease-in-out hover:text-primary lg:text-base"
         >
-          <svg
+          <svg aria-hidden="true"
             className="fill-current"
             width="22"
             height="22"

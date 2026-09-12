@@ -1,26 +1,21 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
-import Loader from './common/Loader';
+import Loader from './components/Loader';
 import PageTitle from './components/PageTitle';
 import ProtectedRoute from './components/ProtectedRoute/ProtectedRoute';
 import SignIn from './pages/Authentication/Login';
 import ManageUsers from './pages/Authentication/ManageUsers';
-import Profile from './pages/Profile';
 import DadosGerais from './pages/Dashboard/DadosGerais';
-import PrevisaoDeCasos from './pages/Dashboard/PrevisaoDeCasos';
-import DadosGeograficos from './pages/Dashboard/DadosGeograficos';
-import DashboardBairro from './pages/Dashboard/DashboardBairro';
-import CarregarLira from './pages/Lira/CarregarLira';
-import DashboardLira from './pages/Lira/DashboardLira';
-import DeterminantesSociais from './pages/Dashboard/DeterminantesSociais';
 import GerenciarDados from './pages/Dashboard/GerenciarDados';
-import UploadDeterminantes from './pages/Dashboard/UploadDeterminantes';
+import Sociodemografica from './pages/Dashboard/Sociodemografica';
+import Profile from './pages/Profile';
 
 function App() {
   const [loading, setLoading] = useState<boolean>(true);
   const { pathname } = useLocation();
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: rerun on route change
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [pathname]);
@@ -37,7 +32,7 @@ function App() {
         index
         element={
           <ProtectedRoute>
-            <PageTitle title="Dashboard Arboviroses" />
+            <PageTitle title="Vigilância" />
             <DadosGerais />
           </ProtectedRoute>
         }
@@ -46,66 +41,26 @@ function App() {
         path="/dashboard/dadosGerais"
         element={
           <ProtectedRoute>
-            <PageTitle title="Dashboard Arboviroses" />
+            <PageTitle title="Vigilância" />
             <DadosGerais />
           </ProtectedRoute>
         }
       />
       <Route
-        path="/gerenciarDados"
+        path="/dashboard/sociodemografica"
         element={
-          <ProtectedRoute requiredRole="ADMIN">
-            <PageTitle title="Gerir Notificacoes" />
+          <ProtectedRoute>
+            <PageTitle title="Sociodemográfico SRAG" />
+            <Sociodemografica />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/dashboard/gerenciar"
+        element={
+          <ProtectedRoute>
+            <PageTitle title="Gerenciar Dados SRAG" />
             <GerenciarDados />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/carregarDados"
-        element={<Navigate to="/gerenciarDados" replace />}
-      />
-      <Route
-        path="/dashboard/previsaoCasos"
-        element={
-          <ProtectedRoute>
-            <PageTitle title="Previsao de casos" />
-            <PrevisaoDeCasos />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/dashboard/determinantesSociais"
-        element={
-          <ProtectedRoute>
-            <PageTitle title="Determinantes sociais" />
-            <DeterminantesSociais />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/uploadDeterminantes"
-        element={
-          <ProtectedRoute requiredRole="ADMIN">
-            <PageTitle title="Importar Determinantes sociais" />
-            <UploadDeterminantes />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/dashboard/dadosGeograficos"
-        element={
-          <ProtectedRoute>
-            <PageTitle title="Dados geograficos" />
-            <DadosGeograficos />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/dashboard/bairro"
-        element={
-          <ProtectedRoute>
-            <PageTitle title="Dados do Bairro" />
-            <DashboardBairro />
           </ProtectedRoute>
         }
       />
@@ -115,24 +70,6 @@ function App() {
           <ProtectedRoute>
             <PageTitle title="Meu Perfil" />
             <Profile />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/lira/carregar"
-        element={
-          <ProtectedRoute requiredRole="ADMIN">
-            <PageTitle title="Carregar Dados LIRA" />
-            <CarregarLira />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/lira/dashboard"
-        element={
-          <ProtectedRoute>
-            <PageTitle title="Dashboard LIRA" />
-            <DashboardLira />
           </ProtectedRoute>
         }
       />
@@ -154,10 +91,7 @@ function App() {
           </ProtectedRoute>
         }
       />
-      <Route
-        path="/auth/registrar"
-        element={<Navigate to="/usuarios" replace />}
-      />
+      <Route path="/auth/registrar" element={<Navigate to="/usuarios" replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

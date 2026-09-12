@@ -1,5 +1,5 @@
-const defaultTheme = require('tailwindcss/defaultTheme')
-const flowbite = require("flowbite-react/tailwind")
+const defaultTheme = require('tailwindcss/defaultTheme');
+const flowbite = require('flowbite-react/tailwind');
 
 /** @type {import('tailwindcss').Config} */
 module.exports = {
@@ -251,7 +251,5 @@ module.exports = {
       },
     },
   },
-  plugins: [
-    flowbite.plugin()
-  ],
-}
+  plugins: [flowbite.plugin()],
+};

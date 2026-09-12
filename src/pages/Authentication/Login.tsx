@@ -1,12 +1,12 @@
-import React, { FormEvent, useEffect, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import type React from 'react';
+import { type FormEvent, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import Logo from '../../images/logo/Logo.png';
-import AuthLayout from '../../layout/AuthLayout';
-import { cpfMask } from '../../common/input/CpfMask';
-import { MAX_PASSWORD_LENGTH, sanitizePassword } from '../../common/input/InputSecurity';
+import { Link, useLocation } from 'react-router-dom';
+import { MAX_PASSWORD_LENGTH, cpfMask, sanitizePassword } from '../../common/input/InputSecurity';
 import { ErrorModal } from '../../components/Modals/ErrorModal';
 import { useAuth } from '../../contexts/AuthContext';
+import Logo from '../../images/logo/Logo.png';
+import AuthLayout from '../../layout/AuthLayout';
 
 // O fetch nativo nao tem timeout. Sem este limite, um /api que aceita a conexao
 // mas nunca responde deixa o botao girando indefinidamente e nenhuma mensagem
@@ -25,25 +25,94 @@ async function parseLoginResponse(response: Response) {
   } catch {
     throw new Error(
       'A API respondeu algo que nao e JSON. Verifique se o /api esta sendo ' +
-      'redirecionado para o backend pelo proxy.'
+        'redirecionado para o backend pelo proxy.',
     );
   }
 }
 
+function loginStatusMessage(status: number, errorData: { message?: unknown }): string {
+  if (status === 400)
+    return typeof errorData.message === 'string' && errorData.message
+      ? errorData.message
+      : 'CPF ou Senha inválidos';
+  if (status === 401) return 'Credenciais inválidas';
+  if (status === 500) return 'Erro interno do servidor. Tente novamente mais tarde.';
+  if (status === 404)
+    return 'Rota de login nao encontrada na API (404). Verifique o proxy do /api.';
+  if (status >= 502 && status <= 504)
+    return `O proxy nao conseguiu alcancar o backend (${status}).`;
+  return `Erro inesperado (HTTP ${status}). Tente novamente.`;
+}
+
+function loginNetworkMessage(error: unknown): string {
+  if (error instanceof DOMException && error.name === 'AbortError')
+    return (
+      `A API nao respondeu em ${LOGIN_TIMEOUT_MS / 1000}s. ` +
+      'Verifique se o backend esta no ar e alcancavel pelo proxy.'
+    );
+  if (error instanceof TypeError)
+    return (
+      'Nao foi possivel alcancar a API. Verifique a conexao e se o dominio ' +
+      'esta servindo o /api na mesma origem.'
+    );
+  if (error instanceof Error) return error.message;
+  return 'Erro de conexão. Verifique sua internet e tente novamente.';
+}
+
+function readPostLoginRedirect(): string | null {
+  try {
+    const stored = sessionStorage.getItem('postLoginRedirect');
+    sessionStorage.removeItem('postLoginRedirect');
+    return stored;
+  } catch {
+    return null;
+  }
+}
+
+function resolvePostLoginTarget(from: string): string {
+  return from.startsWith('/auth/') ? '/' : from;
+}
+
+interface LoginPayload {
+  jwtToken: string;
+  token: string;
+  fullName: string;
+  cpf?: string;
+  role?: string;
+}
+
+async function completeLogin(
+  data: LoginPayload,
+  fallbackCpf: string,
+  signIn: (
+    jwt: string,
+    token: string,
+    user: { fullName: string; cpf: string; role: 'ADMIN' | 'USER' },
+  ) => Promise<void> | void,
+  from: string,
+): Promise<void> {
+  await signIn(data.jwtToken, data.token, {
+    fullName: data.fullName,
+    cpf: data.cpf || fallbackCpf,
+    role: data.role === 'ADMIN' ? 'ADMIN' : 'USER',
+  });
+  window.location.href = resolvePostLoginTarget(from);
+}
+
 const SignIn: React.FC = () => {
-  const baseApiUrl = process.env.REACT_APP_API_URL ?? "";
+  const baseApiUrl = import.meta.env.REACT_APP_API_URL ?? '';
   const location = useLocation();
   const { login } = useAuth();
-  
-  const [cpf, setCpf] = useState<string>("");
-  const [password, setPassword] = useState<string>("");
+
+  const [cpf, setCpf] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
   const [loadingData, setLoadingData] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | false>('');
   const [errorModalOpen, setErrorModalOpen] = useState<boolean>(false);
 
   const [formData, setFormData] = useState({
     cpf: cpf,
-    password: password
+    password: password,
   });
 
   useEffect(() => {
@@ -72,7 +141,7 @@ const SignIn: React.FC = () => {
 
     setFormData({
       ...formData,
-      cpf: cpfMaskValue
+      cpf: cpfMaskValue,
     });
   }
 
@@ -82,23 +151,27 @@ const SignIn: React.FC = () => {
 
     setFormData({
       ...formData,
-      password: sanitizedPassword
+      password: sanitizedPassword,
     });
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    const fail = (message: string) => {
+      setErrorMessage(message);
+      setErrorModalOpen(true);
+    };
+
     try {
       event.preventDefault();
 
       if (!formData.cpf.trim() || !formData.password.trim()) {
-        setErrorMessage('Por favor, preencha todos os campos.');
-        setErrorModalOpen(true);
+        fail('Por favor, preencha todos os campos.');
         return;
       }
 
       setLoadingData(true);
       setErrorMessage(false);
-      
+
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), LOGIN_TIMEOUT_MS);
 
@@ -108,10 +181,10 @@ const SignIn: React.FC = () => {
         response = await fetch(baseApiUrl + '/auth/login', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
           },
           body: JSON.stringify(formData),
-          signal: controller.signal
+          signal: controller.signal,
         });
       } finally {
         clearTimeout(timeoutId);
@@ -124,85 +197,15 @@ const SignIn: React.FC = () => {
           throw new Error('Resposta de login inválida');
         }
 
-        // Use the auth context to handle login
-        console.log('Login: Calling auth context login');
-        await login(data.jwtToken, data.token, {
-          fullName: data.fullName,
-          cpf: data.cpf || formData.cpf,
-          role: data.role === 'ADMIN' ? 'ADMIN' : 'USER'
-        });
-
-        console.log('Login: Auth context login completed, navigating...');
-
-        // O destino pode vir de duas origens: do ProtectedRoute (navegacao dentro
-        // da SPA) ou do interceptor do Api.tsx, que faz recarga completa da pagina
-        // e por isso precisa do sessionStorage para nao perder o destino.
-        let stored: string | null = null;
-
-        try {
-          stored = sessionStorage.getItem('postLoginRedirect');
-          sessionStorage.removeItem('postLoginRedirect');
-        } catch {
-          // sessionStorage pode estar indisponivel (modo privativo).
-        }
-
-        const from = stored || location.state?.from?.pathname || '/';
-
-        // Nunca redirecionar de volta para a propria tela de login: isso recarrega
-        // a mesma pagina e parece que o botao nao fez nada.
-        const target = from.startsWith('/auth/') ? '/' : from;
-        console.log('Login: Navigating to', target);
-
-        // Force navigation using window.location to ensure clean redirect
-        window.location.href = target;
+        const from = readPostLoginRedirect() || location.state?.from?.pathname || '/';
+        await completeLogin(data, formData.cpf, login, from);
       } else {
-        // Handle different error status codes
         const errorData = await response.json().catch(() => ({}));
-        
-        if (response.status === 400) {
-          setErrorMessage(errorData.message || "CPF ou Senha inválidos");
-          setErrorModalOpen(true);
-        } else if (response.status === 401) {
-          setErrorMessage("Credenciais inválidas");
-          setErrorModalOpen(true);
-        } else if (response.status === 500) {
-          setErrorMessage("Erro interno do servidor. Tente novamente mais tarde.");
-          setErrorModalOpen(true);
-        } else if (response.status === 404) {
-          // O proxy respondeu, mas nao existe rota /auth/login atras dele.
-          setErrorMessage("Rota de login nao encontrada na API (404). Verifique o proxy do /api.");
-          setErrorModalOpen(true);
-        } else if (response.status >= 502 && response.status <= 504) {
-          // O nginx esta de pe mas nao consegue falar com o backend.
-          setErrorMessage(`O proxy nao conseguiu alcancar o backend (${response.status}).`);
-          setErrorModalOpen(true);
-        } else {
-          setErrorMessage(`Erro inesperado (HTTP ${response.status}). Tente novamente.`);
-          setErrorModalOpen(true);
-        }
+        fail(loginStatusMessage(response.status, errorData));
       }
-
     } catch (error) {
       console.error('Login error:', error);
-
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        setErrorMessage(
-          `A API nao respondeu em ${LOGIN_TIMEOUT_MS / 1000}s. ` +
-          'Verifique se o backend esta no ar e alcancavel pelo proxy.'
-        );
-      } else if (error instanceof TypeError) {
-        // TypeError no fetch = a requisicao nem chegou a ser respondida
-        // (DNS, conexao recusada, TLS, CORS bloqueado pelo navegador).
-        setErrorMessage(
-          'Nao foi possivel alcancar a API. Verifique a conexao e se o dominio ' +
-          'esta servindo o /api na mesma origem.'
-        );
-      } else if (error instanceof Error) {
-        setErrorMessage(error.message);
-      } else {
-        setErrorMessage("Erro de conexão. Verifique sua internet e tente novamente.");
-      }
-
+      fail(loginNetworkMessage(error));
       setErrorModalOpen(true);
     } finally {
       setLoadingData(false);
@@ -216,16 +219,13 @@ const SignIn: React.FC = () => {
           <div className="hidden w-full xl:block xl:w-1/2">
             <div className="py-17.5 px-26 text-center">
               <Link className="mb-5.5 inline-block" to="/">
-                <div className='flex justify-center items-center gap-2'>
-                  <div className='w-10'>
-                    <img 
-                      src={Logo} 
-                      alt="Logo" 
-                    />
+                <div className="flex justify-center items-center gap-2">
+                  <div className="w-10">
+                    <img src={Logo} alt="Logo" />
                   </div>
                   <div>
-                    <h1 className='text-3xl font-bold text-black dark:text-white'>
-                      Arboviroses
+                    <h1 className="text-3xl font-bold text-black dark:text-white">
+                      SRAG · SIVEP-Gripe
                     </h1>
                   </div>
                 </div>
@@ -236,7 +236,7 @@ const SignIn: React.FC = () => {
               </p>
 
               <span className="mt-15 inline-block">
-                <svg
+                <svg aria-hidden="true"
                   width="350"
                   height="350"
                   viewBox="0 0 350 350"
@@ -275,18 +275,12 @@ const SignIn: React.FC = () => {
                     d="M190.017 158.289H123.208C122.572 158.288 121.962 158.035 121.512 157.586C121.062 157.137 120.809 156.527 120.809 155.892V89.1315C120.809 88.496 121.062 87.8866 121.512 87.4372C121.962 86.9878 122.572 86.735 123.208 86.7343H190.017C190.653 86.735 191.263 86.9878 191.713 87.4372C192.163 87.8866 192.416 88.496 192.416 89.1315V155.892C192.416 156.527 192.163 157.137 191.713 157.586C191.263 158.035 190.653 158.288 190.017 158.289ZM123.208 87.6937C122.826 87.6941 122.46 87.8457 122.19 88.1154C121.92 88.385 121.769 88.7507 121.768 89.132V155.892C121.769 156.274 121.92 156.639 122.19 156.909C122.46 157.178 122.826 157.33 123.208 157.33H190.017C190.399 157.33 190.765 157.178 191.035 156.909C191.304 156.639 191.456 156.274 191.457 155.892V89.132C191.456 88.7507 191.304 88.385 191.035 88.1154C190.765 87.8457 190.399 87.6941 190.017 87.6937H123.208Z"
                     fill="#CCCCCC"
                   />
-                  <path
-                    d="M204.934 209.464H102.469V210.423H204.934V209.464Z"
-                    fill="#CCCCCC"
-                  />
+                  <path d="M204.934 209.464H102.469V210.423H204.934V209.464Z" fill="#CCCCCC" />
                   <path
                     d="M105.705 203.477C107.492 203.477 108.941 202.029 108.941 200.243C108.941 198.457 107.492 197.01 105.705 197.01C103.918 197.01 102.469 198.457 102.469 200.243C102.469 202.029 103.918 203.477 105.705 203.477Z"
                     fill="#3056D3"
                   />
-                  <path
-                    d="M204.934 241.797H102.469V242.757H204.934V241.797Z"
-                    fill="#CCCCCC"
-                  />
+                  <path d="M204.934 241.797H102.469V242.757H204.934V241.797Z" fill="#CCCCCC" />
                   <path
                     d="M105.705 235.811C107.492 235.811 108.941 234.363 108.941 232.577C108.941 230.791 107.492 229.344 105.705 229.344C103.918 229.344 102.469 230.791 102.469 232.577C102.469 234.363 103.918 235.811 105.705 235.811Z"
                     fill="#3056D3"
@@ -362,18 +356,22 @@ const SignIn: React.FC = () => {
 
           <div className="w-full border-stroke dark:border-strokedark xl:w-1/2 xl:border-l-2">
             <div className="w-full p-4 sm:p-12.5 xl:p-17.5">
-              <span className="mb-1.5 block font-medium">Arboviroses</span>
+              <span className="mb-1.5 block font-medium">SRAG · SIVEP-Gripe</span>
               <h2 className="mb-9 text-2xl font-bold text-black dark:text-white sm:text-title-xl2">
                 Logar
               </h2>
 
               <form onSubmit={handleSubmit}>
                 <div className="mb-4">
-                  <label className="mb-2.5 block font-medium text-black dark:text-white">
+                  <label
+                    htmlFor="login-cpf"
+                    className="mb-2.5 block font-medium text-black dark:text-white"
+                  >
                     CPF
                   </label>
                   <div className="relative">
                     <input
+                      id="login-cpf"
                       type="text"
                       placeholder="Ex: 123.456.789-10"
                       className="w-full rounded-lg border border-stroke bg-transparent py-4 pl-6 pr-10 text-black outline-none focus:border-primary focus-visible:shadow-none dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
@@ -388,11 +386,15 @@ const SignIn: React.FC = () => {
                 </div>
 
                 <div className="mb-6">
-                  <label className="mb-2.5 block font-medium text-black dark:text-white">
+                  <label
+                    htmlFor="login-password"
+                    className="mb-2.5 block font-medium text-black dark:text-white"
+                  >
                     Senha
                   </label>
                   <div className="relative">
                     <input
+                      id="login-password"
                       type="password"
                       placeholder="Senha"
                       className="w-full rounded-lg border border-stroke bg-transparent py-4 pl-6 pr-10 text-black outline-none focus:border-primary focus-visible:shadow-none dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
@@ -405,7 +407,7 @@ const SignIn: React.FC = () => {
                     />
 
                     <span className="absolute right-4 top-4">
-                      <svg
+                      <svg aria-hidden="true"
                         className="fill-current"
                         width="22"
                         height="22"
@@ -426,28 +428,33 @@ const SignIn: React.FC = () => {
                       </svg>
                     </span>
                   </div>
-                  {
-                    errorMessage && (
-                      <p className='mt-2 text-lg leading-5 text-red-600'>
-                        {errorMessage}
-                      </p>
-                    )
-                  }
+                  {errorMessage && (
+                    <p className="mt-2 text-lg leading-5 text-red-600">{errorMessage}</p>
+                  )}
                 </div>
 
                 <div className="mb-5">
-                  <button
+                  <button type="submit"
                     className="flex justify-center items-center bg-indigo-500 enabled:hover:bg-indigo-800 disabled:opacity-75 rounded w-full h-10 text-white cursor-pointer disabled:cursor-not-allowed"
                     disabled={loadingData}
-                 >
-                    {
-                    loadingData && (
-                        <svg className="animate-spin h-5 w-5 mr-3" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        )
-                    }
+                  >
+                    {loadingData && (
+                      <svg aria-hidden="true" className="animate-spin h-5 w-5 mr-3" viewBox="0 0 24 24">
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
+                      </svg>
+                    )}
                     Logar
                   </button>
                 </div>
@@ -460,7 +467,7 @@ const SignIn: React.FC = () => {
         openModal={errorModalOpen}
         handleModalClose={handleErrorModalClose}
         message={errorMessage || 'Erro ao realizar login'}
-        position='center'
+        position="center"
       />
     </AuthLayout>
   );
