@@ -1,12 +1,12 @@
 import { type FormEvent, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
+  cpfMask,
   MAX_NAME_LENGTH,
   MAX_PASSWORD_LENGTH,
-  cpfMask,
   sanitizePassword,
   sanitizeSafeText,
-} from '../common/input/InputSecurity';
+} from '../common/InputSecurity';
 import Breadcrumb from '../components/Breadcrumbs/Breadcrumb';
 import { useAuth } from '../contexts/AuthContext';
 import DefaultLayout from '../layout/DefaultLayout';
@@ -27,8 +27,7 @@ function passwordChangeError(
 function profileErrorMessage(error: unknown): string {
   const responseData =
     typeof error === 'object' && error !== null
-      ? (error as { response?: { data?: { errors?: unknown; message?: unknown } } }).response
-          ?.data
+      ? (error as { response?: { data?: { errors?: unknown; message?: unknown } } }).response?.data
       : undefined;
   const firstError = Array.isArray(responseData?.errors) ? responseData.errors[0] : null;
   return normalizeApiMessage(

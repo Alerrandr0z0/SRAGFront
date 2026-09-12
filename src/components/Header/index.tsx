@@ -12,7 +12,8 @@ const Header = (props: {
       <div className="flex flex-grow items-center px-4 py-3 shadow-2 md:px-6 2xl:px-11">
         {/* Hamburguer — mobile */}
         <div className="flex items-center lg:hidden">
-          <button type="button"
+          <button
+            type="button"
             aria-controls="sidebar"
             onClick={(e) => {
               e.stopPropagation();

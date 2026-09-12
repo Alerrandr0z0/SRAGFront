@@ -141,8 +141,8 @@ const GerenciarDados: React.FC = () => {
     <DefaultLayout>
       <div className="mx-auto p-6">
         <h1 className="text-2xl font-semibold text-indigo-600 dark:text-indigo-400 mb-5">
-            Gerir Notificações
-          </h1>
+          Gerir Notificações
+        </h1>
 
         <div className="flex border-b border-gray-200 dark:border-strokedark mb-6">
           {(
@@ -151,7 +151,8 @@ const GerenciarDados: React.FC = () => {
               ['erros', 'Dados com Algum Erro'],
             ] as [Tab, string][]
           ).map(([t, label]) => (
-            <button type="button"
+            <button
+              type="button"
               key={t}
               onClick={() => setTab(t)}
               className={`px-5 py-2.5 text-sm font-medium border-b-2 transition ${
@@ -192,7 +193,8 @@ const GerenciarDados: React.FC = () => {
             </div>
 
             <div className="flex justify-center mt-6">
-              <button type="button"
+              <button
+                type="button"
                 onClick={handleUpload}
                 disabled={!file || uploading}
                 className="flex items-center bg-primary text-white px-6 py-2 rounded hover:bg-opacity-90 disabled:opacity-60 disabled:cursor-not-allowed transition"
@@ -343,10 +345,7 @@ interface ErrorsFilterState {
   endDate: string;
 }
 
-function activeFiltersSummary(
-  filters: ErrorsFilterState,
-  categoryLabel: string,
-): string {
+function activeFiltersSummary(filters: ErrorsFilterState, categoryLabel: string): string {
   const parts: string[] = [];
   if (filters.category) parts.push(`Problema: ${categoryLabel}`);
   if (filters.agent) parts.push(`Agente: ${agentLabel(filters.agent)}`);
@@ -602,7 +601,8 @@ function ErrorsManager() {
           </div>
 
           {hasAnyFilter && (
-            <button type="button"
+            <button
+              type="button"
               onClick={() => {
                 setCategory('');
                 setAgent('');
@@ -615,14 +615,16 @@ function ErrorsManager() {
             </button>
           )}
 
-          <button type="button"
+          <button
+            type="button"
             onClick={() => {
               setPdfError(null);
               setPdfOpen(true);
             }}
             className="ml-auto flex items-center gap-2 rounded bg-red-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-700 transition"
           >
-            <svg aria-hidden="true"
+            <svg
+              aria-hidden="true"
               className="h-4 w-4"
               fill="none"
               stroke="currentColor"
@@ -641,7 +643,8 @@ function ErrorsManager() {
 
         {hasAnyFilter && (
           <p className="mt-3 text-xs text-indigo-600 dark:text-indigo-400 font-medium">
-            Filtros ativos: {activeFiltersSummary({ category, agent, startDate, endDate }, categoryLabel)}
+            Filtros ativos:{' '}
+            {activeFiltersSummary({ category, agent, startDate, endDate }, categoryLabel)}
           </p>
         )}
       </div>
@@ -649,7 +652,11 @@ function ErrorsManager() {
       <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-strokedark bg-white dark:bg-boxdark shadow-sm">
         {loading ? (
           <div className="flex justify-center items-center py-16">
-            <svg aria-hidden="true" className="animate-spin h-8 w-8 text-indigo-500" viewBox="0 0 24 24">
+            <svg
+              aria-hidden="true"
+              className="animate-spin h-8 w-8 text-indigo-500"
+              viewBox="0 0 24 24"
+            >
               <circle
                 className="opacity-25"
                 cx="12"
@@ -724,14 +731,16 @@ function ErrorsManager() {
             {totalElements} registros — Página {page} de {totalPages}
           </span>
           <div className="flex gap-2">
-            <button type="button"
+            <button
+              type="button"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page <= 1}
               className="rounded border border-gray-300 dark:border-strokedark px-3 py-1 text-gray-600 dark:text-bodydark hover:bg-gray-100 dark:hover:bg-meta-4 disabled:opacity-40 transition"
             >
               ← Anterior
             </button>
-            <button type="button"
+            <button
+              type="button"
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
               className="rounded border border-gray-300 dark:border-strokedark px-3 py-1 text-gray-600 dark:text-bodydark hover:bg-gray-100 dark:hover:bg-meta-4 disabled:opacity-40 transition"

@@ -71,9 +71,11 @@ describe('mapVirusToDonut', () => {
 
 describe('mapComorbiditiesToPareto', () => {
   it('remaps backend cumulative', () => {
-    expect(
-      mapComorbiditiesToPareto([{ name: 'Cardiopatia', value: 10, cumulative: 40 }]),
-    ).toEqual({ labels: ['Cardiopatia'], bars: [10], cumulative: [40] });
+    expect(mapComorbiditiesToPareto([{ name: 'Cardiopatia', value: 10, cumulative: 40 }])).toEqual({
+      labels: ['Cardiopatia'],
+      bars: [10],
+      cumulative: [40],
+    });
   });
 });
 

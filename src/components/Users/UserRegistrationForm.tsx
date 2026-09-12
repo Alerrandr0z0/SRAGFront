@@ -3,14 +3,14 @@ import { type FormEvent, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import {
+  cpfMask,
   MAX_NAME_LENGTH,
   MAX_PASSWORD_LENGTH,
-  cpfMask,
   sanitizePassword,
   sanitizeSafeText,
-} from '../../common/input/InputSecurity';
+} from '../../common/InputSecurity';
 import api from '../../service/api/Api';
-import { SuccessModal } from '../Modals/SuccessModal';
+import { FeedbackModal } from '../FeedbackModal';
 
 interface UserRegistrationFormProps {
   onSuccess?: () => void;
@@ -281,11 +281,12 @@ export default function UserRegistrationForm({ onSuccess }: UserRegistrationForm
         </div>
       </form>
 
-      <SuccessModal
+      <FeedbackModal
         openModal={successModalOpen}
         handleModalClose={() => setSuccessModalOpen(false)}
         message="Registro realizado com sucesso!"
         position="center"
+        tone="success"
       />
     </>
   );

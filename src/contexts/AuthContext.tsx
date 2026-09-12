@@ -34,7 +34,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const navigate = useNavigate();
 
-  const baseApiUrl = import.meta.env.REACT_APP_API_URL || '';
+  const baseApiUrl = import.meta.env.REACT_APP_API_URL || '/api';
 
   const login = (accessToken: string, refreshToken: string, userData: User) => {
     try {

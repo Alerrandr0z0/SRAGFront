@@ -1,7 +1,6 @@
 /**
  * Filtros conceituais SRAG (SIVEP-Gripe).
- * Espelha CommonFilters do FastAPI: profile, race, gender, zonas,
- * bairros, unidades, years, agents, months, days, classi.
+ * Espelha CommonFilters do FastAPI: years, agents, bairros, classi.
  * O Front trabalha com o subconjunto: ano + agente + bairro + classificação final.
  */
 

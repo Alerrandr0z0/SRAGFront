@@ -7,15 +7,17 @@ export function sanitizePassword(value: string): string {
 }
 
 export function sanitizeSafeText(value: string, maxLength = MAX_NAME_LENGTH): string {
-  return value
-    .normalize('NFKC')
-    // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping controls is the purpose
-    .replace(/[\u0000-\u001F\u007F]/g, '')
-    // biome-ignore lint/suspicious/noMisleadingCharacterClass: pictographs have no combining form here
-    .replace(/[\p{Extended_Pictographic}\uFE0F]/gu, '')
-    .replace(/[^\p{L}\p{M}\p{N} .,'_-]/gu, '')
-    .replace(/\s{2,}/g, ' ')
-    .slice(0, maxLength);
+  return (
+    value
+      .normalize('NFKC')
+      // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping controls is the purpose
+      .replace(/[\u0000-\u001F\u007F]/g, '')
+      // biome-ignore lint/suspicious/noMisleadingCharacterClass: pictographs have no combining form here
+      .replace(/[\p{Extended_Pictographic}\uFE0F]/gu, '')
+      .replace(/[^\p{L}\p{M}\p{N} .,'_-]/gu, '')
+      .replace(/\s{2,}/g, ' ')
+      .slice(0, maxLength)
+  );
 }
 
 export function cpfMask(value: string): string {
@@ -35,4 +37,3 @@ export function cpfMask(value: string): string {
 
   return `${cleaned.slice(0, 3)}.${cleaned.slice(3, 6)}.${cleaned.slice(6, 9)}-${cleaned.slice(9)}`;
 }
-

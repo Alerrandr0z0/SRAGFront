@@ -13,13 +13,11 @@ import {
   type ComorbiditiesPareto,
   mapComorbiditiesToPareto,
   mapMaternalToCount,
-  mapPopulationPyramid,
   mapPyramidToSexoSeries,
   mapTerritoryToNeighborhood,
   mapTrendsToLine,
   mapVaccinationToCounts,
   mapVirusToDonut,
-  type PopulationPyramidSeries,
 } from './sragMappers';
 
 export interface SragCards {
@@ -79,14 +77,6 @@ export async function mountSragSexo(
 ): Promise<void> {
   const citizen = await getSragCitizen(filters);
   setSeries(mapPyramidToSexoSeries(citizen?.citizen_pyramid ?? []));
-}
-
-export async function mountSragPopulationPyramid(
-  setPyramid: (p: PopulationPyramidSeries) => void,
-  filters: SragFilters,
-): Promise<void> {
-  const citizen = await getSragCitizen(filters);
-  setPyramid(mapPopulationPyramid(citizen?.population_pyramid ?? []));
 }
 
 export async function mountSragAgente(

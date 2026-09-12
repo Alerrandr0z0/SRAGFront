@@ -1,6 +1,6 @@
 import axios, { type AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 
-const baseUrl = import.meta.env.REACT_APP_API_URL ?? '';
+const baseUrl = import.meta.env.REACT_APP_API_URL || '/api';
 
 // Create axios instance
 const api = axios.create({
@@ -45,10 +45,7 @@ api.interceptors.request.use(
 function redirectToLoginOnExpiry() {
   if (window.location.pathname.startsWith('/auth/')) return;
   try {
-    sessionStorage.setItem(
-      'postLoginRedirect',
-      window.location.pathname + window.location.search,
-    );
+    sessionStorage.setItem('postLoginRedirect', window.location.pathname + window.location.search);
   } catch {
     // sessionStorage pode estar indisponivel (modo privativo).
   }
@@ -74,9 +71,7 @@ function failSession(refreshError: unknown) {
   return Promise.reject(refreshError);
 }
 
-async function refreshSession(
-  originalRequest: InternalAxiosRequestConfig & { _retry?: boolean },
-) {
+async function refreshSession(originalRequest: InternalAxiosRequestConfig & { _retry?: boolean }) {
   originalRequest._retry = true;
   isRefreshing = true;
 
@@ -159,3 +154,16 @@ api.interceptors.response.use(
 );
 
 export default api;
+
+function unwrapApiData<T>(payload: unknown): T {
+  if (payload && typeof payload === 'object' && 'data' in payload) {
+    return (payload as { data: T }).data;
+  }
+
+  return payload as T;
+}
+
+export async function getApiData<T>(uri: string): Promise<T> {
+  const response = await api.get(uri);
+  return unwrapApiData(response.data);
+}

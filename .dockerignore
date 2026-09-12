@@ -2,7 +2,6 @@
 .gitignore
 .DS_Store
 .claude
-.firebase
 dist
 node_modules
 *.log

@@ -2,8 +2,8 @@ import type React from 'react';
 import { type FormEvent, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Link, useLocation } from 'react-router-dom';
-import { MAX_PASSWORD_LENGTH, cpfMask, sanitizePassword } from '../../common/input/InputSecurity';
-import { ErrorModal } from '../../components/Modals/ErrorModal';
+import { cpfMask, MAX_PASSWORD_LENGTH, sanitizePassword } from '../../common/InputSecurity';
+import { FeedbackModal } from '../../components/FeedbackModal';
 import { useAuth } from '../../contexts/AuthContext';
 import Logo from '../../images/logo/Logo.png';
 import AuthLayout from '../../layout/AuthLayout';
@@ -100,7 +100,7 @@ async function completeLogin(
 }
 
 const SignIn: React.FC = () => {
-  const baseApiUrl = import.meta.env.REACT_APP_API_URL ?? '';
+  const baseApiUrl = import.meta.env.REACT_APP_API_URL || '/api';
   const location = useLocation();
   const { login } = useAuth();
 
@@ -236,7 +236,8 @@ const SignIn: React.FC = () => {
               </p>
 
               <span className="mt-15 inline-block">
-                <svg aria-hidden="true"
+                <svg
+                  aria-hidden="true"
                   width="350"
                   height="350"
                   viewBox="0 0 350 350"
@@ -407,7 +408,8 @@ const SignIn: React.FC = () => {
                     />
 
                     <span className="absolute right-4 top-4">
-                      <svg aria-hidden="true"
+                      <svg
+                        aria-hidden="true"
                         className="fill-current"
                         width="22"
                         height="22"
@@ -434,12 +436,17 @@ const SignIn: React.FC = () => {
                 </div>
 
                 <div className="mb-5">
-                  <button type="submit"
+                  <button
+                    type="submit"
                     className="flex justify-center items-center bg-indigo-500 enabled:hover:bg-indigo-800 disabled:opacity-75 rounded w-full h-10 text-white cursor-pointer disabled:cursor-not-allowed"
                     disabled={loadingData}
                   >
                     {loadingData && (
-                      <svg aria-hidden="true" className="animate-spin h-5 w-5 mr-3" viewBox="0 0 24 24">
+                      <svg
+                        aria-hidden="true"
+                        className="animate-spin h-5 w-5 mr-3"
+                        viewBox="0 0 24 24"
+                      >
                         <circle
                           className="opacity-25"
                           cx="12"
@@ -463,11 +470,12 @@ const SignIn: React.FC = () => {
           </div>
         </div>
       </div>
-      <ErrorModal
+      <FeedbackModal
         openModal={errorModalOpen}
         handleModalClose={handleErrorModalClose}
         message={errorMessage || 'Erro ao realizar login'}
         position="center"
+        tone="error"
       />
     </AuthLayout>
   );

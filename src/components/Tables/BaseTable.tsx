@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { downloadBairrosPdf } from '../../service/srag/sragClient';
 import type { NeighborhoodInfo } from '../../service/srag/sragClient';
+import { downloadBairrosPdf } from '../../service/srag/sragClient';
 
 interface BaseTableProps {
   neighborhoodData: NeighborhoodInfo[];
@@ -121,7 +121,8 @@ const BaseTable: React.FC<BaseTableProps> = ({
               </label>
             </>
           )}
-          <button type="button"
+          <button
+            type="button"
             onClick={handleDownloadPdf}
             disabled={generatingPdf}
             title="Baixar relatório PDF por bairro e semana epidemiológica"
@@ -215,7 +216,8 @@ const BaseTable: React.FC<BaseTableProps> = ({
 
           {totalPages > 1 && (
             <div className="flex items-center gap-1">
-              <button type="button"
+              <button
+                type="button"
                 onClick={() => setPage((p) => Math.max(0, p - 1))}
                 disabled={safePage === 0}
                 className="rounded border border-stroke px-3 py-1 text-sm text-black disabled:opacity-40 dark:border-strokedark dark:text-white"
@@ -236,7 +238,8 @@ const BaseTable: React.FC<BaseTableProps> = ({
                   {page + 1}
                 </button>
               ))}
-              <button type="button"
+              <button
+                type="button"
                 onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
                 disabled={safePage >= totalPages - 1}
                 className="rounded border border-stroke px-3 py-1 text-sm text-black disabled:opacity-40 dark:border-strokedark dark:text-white"

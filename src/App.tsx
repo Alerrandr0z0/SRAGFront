@@ -3,7 +3,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import Loader from './components/Loader';
 import PageTitle from './components/PageTitle';
-import ProtectedRoute from './components/ProtectedRoute/ProtectedRoute';
+import ProtectedRoute from './components/ProtectedRoute';
 import SignIn from './pages/Authentication/Login';
 import ManageUsers from './pages/Authentication/ManageUsers';
 import DadosGerais from './pages/Dashboard/DadosGerais';

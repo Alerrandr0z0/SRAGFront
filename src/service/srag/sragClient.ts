@@ -1,5 +1,4 @@
-import api from '../api/Api';
-import getApiData from '../api/fetchApiData';
+import api, { getApiData } from '../api/Api';
 import { buildSragQueryParams, type SragFilters } from './sragFilters';
 
 function qs(filters: SragFilters): string {

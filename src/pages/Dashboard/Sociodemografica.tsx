@@ -1,10 +1,10 @@
 import type { ApexOptions } from 'apexcharts';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CountCard } from '../../components/Cards/CountCard';
 import ColumnGraphic from '../../components/Charts/ColumnGraphic';
 import DonutChart from '../../components/Charts/DonutChart';
 import ParetoChart from '../../components/Charts/ParetoChart';
+import { CountCard } from '../../components/CountCard';
 import AgentSelector from '../../components/Forms/SelectGroup/AgentSelector';
 import BairroSelector from '../../components/Forms/SelectGroup/BairroSelector';
 import ClassiSelector from '../../components/Forms/SelectGroup/ClassiSelector';

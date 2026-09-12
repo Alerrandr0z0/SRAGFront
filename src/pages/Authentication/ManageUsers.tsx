@@ -119,7 +119,8 @@ export default function ManageUsers() {
                     ['register', 'Registrar novo usuário'],
                   ] as [Tab, string][]
                 ).map(([currentTab, label]) => (
-                  <button type="button"
+                  <button
+                    type="button"
                     key={currentTab}
                     onClick={() => setTab(currentTab)}
                     className={`rounded-t-lg border-b-2 px-4 py-2 text-sm font-medium transition ${
@@ -156,7 +157,8 @@ export default function ManageUsers() {
                     />
                   </div>
 
-                  <button type="button"
+                  <button
+                    type="button"
                     onClick={loadUsers}
                     disabled={loading}
                     className="inline-flex items-center justify-center rounded-lg border border-stroke px-4 py-3 text-sm font-medium text-black transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-strokedark dark:text-white dark:hover:bg-meta-4"
@@ -216,7 +218,8 @@ export default function ManageUsers() {
                                 </span>
                               </td>
                               <td className="px-4 py-4 text-right">
-                                <button type="button"
+                                <button
+                                  type="button"
                                   onClick={() => setUserToDelete(managedUser)}
                                   disabled={isCurrentUser || deletingId === managedUser.id}
                                   className="inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-gray-400"
@@ -264,7 +267,8 @@ export default function ManageUsers() {
                           </span>
                         </div>
 
-                        <button type="button"
+                        <button
+                          type="button"
                           onClick={() => setUserToDelete(managedUser)}
                           disabled={isCurrentUser || deletingId === managedUser.id}
                           className="mt-4 inline-flex w-full items-center justify-center rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-gray-400"
@@ -311,7 +315,8 @@ export default function ManageUsers() {
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-boxdark">
             <div className="flex items-start gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
-                <svg aria-hidden="true"
+                <svg
+                  aria-hidden="true"
                   className="h-6 w-6 text-red-600 dark:text-red-300"
                   fill="none"
                   stroke="currentColor"
@@ -336,14 +341,16 @@ export default function ManageUsers() {
             </div>
 
             <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
-              <button type="button"
+              <button
+                type="button"
                 onClick={() => setUserToDelete(null)}
                 disabled={deletingId === userToDelete.id}
                 className="rounded-lg border border-stroke px-4 py-2.5 text-sm font-medium text-black transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-strokedark dark:text-white dark:hover:bg-meta-4"
               >
                 Cancelar
               </button>
-              <button type="button"
+              <button
+                type="button"
                 onClick={handleDeleteUser}
                 disabled={deletingId === userToDelete.id}
                 className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"

@@ -7,9 +7,9 @@
  *  HOSPITAL/UTI 1-Sim | PCR_RESUL 1-Detectável.
  */
 
-import type { NeighborhoodInfo } from './sragClient';
 import type {
   CitizenPyramidBin,
+  NeighborhoodInfo,
   PopulationPyramidBin,
   TerritoryEntity,
   TrendsResponse,

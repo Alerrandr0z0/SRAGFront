@@ -1,10 +1,9 @@
 import type { ApexOptions } from 'apexcharts';
 import type React from 'react';
 import { useEffect, useMemo, useState } from 'react';
-import { CountCard } from '../../components/Cards/CountCard';
 import DonutChart from '../../components/Charts/DonutChart';
 import TrendChart from '../../components/Charts/TrendChart';
-import type { NeighborhoodInfo } from '../../service/srag/sragClient';
+import { CountCard } from '../../components/CountCard';
 import AgentSelector from '../../components/Forms/SelectGroup/AgentSelector';
 import BairroSelector from '../../components/Forms/SelectGroup/BairroSelector';
 import ClassiSelector from '../../components/Forms/SelectGroup/ClassiSelector';
@@ -15,6 +14,7 @@ import {
   sragDonutSexoOptions,
   sragLineOptions,
 } from '../../service/srag/sragChartOptions';
+import type { NeighborhoodInfo } from '../../service/srag/sragClient';
 import {
   loadSragAvailableYears,
   loadSragCards,
@@ -187,7 +187,8 @@ const DadosGerais: React.FC = () => {
         <div className="flex items-center justify-center min-h-screen">
           <div className="flex flex-col items-center gap-4 p-8 text-center">
             <p className="text-xl font-semibold text-red-600">{error}</p>
-            <button type="button"
+            <button
+              type="button"
               onClick={() => window.location.reload()}
               className="mt-4 px-6 py-3 bg-primary text-white rounded-lg hover:bg-opacity-90 transition"
             >

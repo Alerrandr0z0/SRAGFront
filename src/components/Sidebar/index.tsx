@@ -78,14 +78,16 @@ const Sidebar = ({
       {/* ── Header da sidebar ── */}
       <div className="flex items-center justify-between px-3 pt-5.5 pb-4 lg:pt-6.5 border-b border-strokedark">
         {/* Botão colapso — desktop */}
-        <button type="button"
+        <button
+          type="button"
           onClick={toggleCollapse}
           title={sidebarCollapsed ? 'Expandir menu' : 'Menu'}
           className={`hidden lg:flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-bodydark2 hover:bg-graydark hover:text-white transition-all duration-200 ${
             sidebarCollapsed ? 'w-full justify-center' : ''
           }`}
         >
-          <svg aria-hidden="true"
+          <svg
+            aria-hidden="true"
             className={`shrink-0 transition-transform duration-300 ${sidebarCollapsed ? 'rotate-180' : ''}`}
             width="20"
             height="20"
@@ -98,14 +100,21 @@ const Sidebar = ({
         </button>
 
         {/* Botão fechar — mobile */}
-        <button type="button"
+        <button
+          type="button"
           ref={trigger}
           onClick={() => setSidebarOpen(!sidebarOpen)}
           aria-controls="sidebar"
           aria-expanded={sidebarOpen}
           className="flex lg:hidden ml-auto items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-bodydark2 hover:bg-graydark hover:text-white transition-all duration-200"
         >
-          <svg aria-hidden="true" className="fill-current shrink-0" width="20" height="18" viewBox="0 0 20 18">
+          <svg
+            aria-hidden="true"
+            className="fill-current shrink-0"
+            width="20"
+            height="18"
+            viewBox="0 0 20 18"
+          >
             <path
               d="M19 8.175H2.98748L9.36248 1.6875C9.69998 1.35 9.69998 0.825 9.36248 0.4875C9.02498 0.15 8.49998 0.15 8.16248 0.4875L0.399976 8.3625C0.0624756 8.7 0.0624756 9.225 0.399976 9.5625L8.16248 17.4375C8.31248 17.5875 8.53748 17.7 8.76248 17.7C8.98748 17.7 9.17498 17.625 9.36248 17.475C9.69998 17.1375 9.69998 16.6125 9.36248 16.275L3.02498 9.8625H19C19.45 9.8625 19.825 9.4875 19.825 9.0375C19.825 8.55 19.45 8.175 19 8.175Z"
               fill=""
@@ -136,7 +145,13 @@ const Sidebar = ({
                   title={tip('Vigilância')}
                   className={({ isActive }) => navItem(isActive)}
                 >
-                  <svg aria-hidden="true" className="fill-current shrink-0" width="18" height="18" viewBox="0 0 18 18">
+                  <svg
+                    aria-hidden="true"
+                    className="fill-current shrink-0"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 18 18"
+                  >
                     <path
                       d="M6.10322 0.956299H2.53135C1.5751 0.956299 0.787598 1.7438 0.787598 2.70005V6.27192C0.787598 7.22817 1.5751 8.01567 2.53135 8.01567H6.10322C7.05947 8.01567 7.84697 7.22817 7.84697 6.27192V2.72817C7.8751 1.7438 7.0876 0.956299 6.10322 0.956299ZM6.60947 6.30005C6.60947 6.5813 6.38447 6.8063 6.10322 6.8063H2.53135C2.2501 6.8063 2.0251 6.5813 2.0251 6.30005V2.72817C2.0251 2.44692 2.2501 2.22192 2.53135 2.22192H6.10322C6.38447 2.22192 6.60947 2.44692 6.60947 2.72817V6.30005Z"
                       fill=""
@@ -164,7 +179,13 @@ const Sidebar = ({
                   title={tip('Sociodemográfico')}
                   className={({ isActive }) => navItem(isActive)}
                 >
-                  <svg aria-hidden="true" className="fill-current shrink-0" width="18" height="18" viewBox="0 0 24 24">
+                  <svg
+                    aria-hidden="true"
+                    className="fill-current shrink-0"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                  >
                     <path
                       d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"
                       fill=""
@@ -197,7 +218,8 @@ const Sidebar = ({
                     title={tip('Gerenciar Dados')}
                     className={({ isActive }) => navItem(isActive)}
                   >
-                    <svg aria-hidden="true"
+                    <svg
+                      aria-hidden="true"
                       className="fill-current shrink-0"
                       width="18"
                       height="18"
@@ -219,7 +241,8 @@ const Sidebar = ({
                     title={tip('Gerenciar Usuários')}
                     className={({ isActive }) => navItem(isActive)}
                   >
-                    <svg aria-hidden="true"
+                    <svg
+                      aria-hidden="true"
                       className="fill-current shrink-0"
                       width="18"
                       height="18"

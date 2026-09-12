@@ -12,7 +12,8 @@ const DropdownUser = () => {
     const clickHandler = ({ target }: MouseEvent) => {
       const node = target as Node | null;
       if (!dropdown.current || !trigger.current) return;
-      if (!dropdownOpen || dropdown.current.contains(node) || trigger.current.contains(node)) return;
+      if (!dropdownOpen || dropdown.current.contains(node) || trigger.current.contains(node))
+        return;
       setDropdownOpen(false);
     };
     document.addEventListener('click', clickHandler);
@@ -78,7 +79,8 @@ const DropdownUser = () => {
           onClick={() => setDropdownOpen(false)}
           className="flex items-center gap-3.5 px-6 py-4 text-sm font-medium duration-300 ease-in-out hover:text-primary lg:text-base"
         >
-          <svg aria-hidden="true"
+          <svg
+            aria-hidden="true"
             className="fill-current"
             width="22"
             height="22"
@@ -100,11 +102,13 @@ const DropdownUser = () => {
 
         <div className="mx-6 border-t border-stroke dark:border-strokedark" />
 
-        <button type="button"
+        <button
+          type="button"
           onClick={handleLogout}
           className="flex items-center gap-3.5 px-6 py-4 text-sm font-medium duration-300 ease-in-out hover:text-primary lg:text-base"
         >
-          <svg aria-hidden="true"
+          <svg
+            aria-hidden="true"
             className="fill-current"
             width="22"
             height="22"
