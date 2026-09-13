@@ -11,7 +11,7 @@ import {
   type IngestJob,
   type IngestResult,
   type IngestStatus,
-  type QuarantineItem,
+  type ErrorItem,
   uploadSragSpreadsheet,
 } from '../../service/srag/sragClient';
 
@@ -228,9 +228,6 @@ const GerenciarDados: React.FC = () => {
                     Arquivo: {result.file} · Fontes: {result.stats.sources} · Lidos:{' '}
                     {result.stats.temp_cases} · Únicos: {result.stats.unique_cases} · Duplicatas
                     removidas: {result.stats.duplicates_removed}
-                    {result.stats.quarantined != null && (
-                      <> · Quarentena: {result.stats.quarantined}</>
-                    )}
                   </p>
                 )}
               </div>
@@ -691,7 +688,7 @@ function ErrorsManager() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-strokedark">
-              {(data?.items ?? []).map((item: QuarantineItem) => {
+              {(data?.items ?? []).map((item: ErrorItem) => {
                 const raw = (item.raw_record ?? {}) as Record<string, unknown>;
                 const str = (v: unknown) =>
                   v === null || v === undefined || v === '' ? '—' : String(v);

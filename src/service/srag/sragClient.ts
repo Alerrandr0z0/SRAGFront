@@ -134,7 +134,6 @@ export interface IngestResult {
     unique_cases: number;
     duplicates_removed: number;
     sources: number;
-    quarantined?: number;
   };
 }
 
@@ -147,36 +146,27 @@ export interface IngestJob {
   error?: string | null;
 }
 
-// --- Quarentena de erros (ADMIN, somente leitura na UI) ---
-
-export interface QuarantineItem {
+export interface ErrorItem {
   id: number;
-  batch: string | null;
-  source_file: string | null;
-  row_index: number | null;
   raw_record: Record<string, unknown>;
   error_category: string | null;
   error_detail: string | null;
-  created_at: string | null;
   semana_epidemiologica?: number | null;
   agente?: string | null;
 }
 
 export interface ErrorsResponse {
-  items: QuarantineItem[];
+  items: ErrorItem[];
   total: number;
   page: number;
   page_size: number;
-  batch: string | null;
   categories: Array<{ category: string; count: number }>;
-  batches: string[];
 }
 
 export async function getManageErrors(params: {
   page?: number;
   page_size?: number;
   category?: string;
-  batch?: string;
   start_date?: string;
   end_date?: string;
   agent?: string;
@@ -185,7 +175,6 @@ export async function getManageErrors(params: {
   if (params.page) sp.set('page', String(params.page));
   if (params.page_size) sp.set('page_size', String(params.page_size));
   if (params.category) sp.set('category', params.category);
-  if (params.batch) sp.set('batch', params.batch);
   if (params.start_date) sp.set('start_date', params.start_date);
   if (params.end_date) sp.set('end_date', params.end_date);
   if (params.agent) sp.set('agent', params.agent);
@@ -222,21 +211,22 @@ export async function downloadBairrosPdf(queryString: string): Promise<void> {
 
 export async function downloadErrorsPdf(params: {
   category?: string;
-  batch?: string;
   start_date?: string;
   end_date?: string;
   agent?: string;
 }): Promise<void> {
   const sp = new URLSearchParams();
   if (params.category) sp.set('category', params.category);
-  if (params.batch) sp.set('batch', params.batch);
   if (params.start_date) sp.set('start_date', params.start_date);
   if (params.end_date) sp.set('end_date', params.end_date);
   if (params.agent) sp.set('agent', params.agent);
   const query = sp.toString();
-  const response = await api.get(`/manage/errors/pdf${query ? `?${query}` : ''}`, {
-    responseType: 'blob',
-  });
+  const response = await api.get(
+    `/manage/errors/pdf${query ? `?${query}` : ''}`,
+    {
+      responseType: 'blob',
+    },
+  );
   const disposition: string = response.headers?.['content-disposition'] ?? '';
   const match = disposition.match(/filename=([^;]+)/);
   const filename = (match?.[1] ?? 'erros-todos.pdf').replace(/["']/g, '');
