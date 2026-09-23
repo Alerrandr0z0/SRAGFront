@@ -5,7 +5,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { cpfMask, MAX_PASSWORD_LENGTH, sanitizePassword } from '../../common/InputSecurity';
 import { FeedbackModal } from '../../components/FeedbackModal';
 import { useAuth } from '../../contexts/AuthContext';
-import Logo from '../../images/logo/Logo.png';
+import Logo from '../../images/logo/Logo.webp';
 import AuthLayout from '../../layout/AuthLayout';
 
 // O fetch nativo nao tem timeout. Sem este limite, um /api que aceita a conexao

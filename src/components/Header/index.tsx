@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import Logo from '../../images/logo/Logo.png';
+import Logo from '../../images/logo/Logo.webp';
 import DarkModeSwitcher from './DarkModeSwitcher';
 import DropdownUser from './DropdownUser';
 

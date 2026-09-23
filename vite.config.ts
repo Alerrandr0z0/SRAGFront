@@ -24,7 +24,8 @@ export default defineConfig({
         manualChunks(id) {
           if (id.includes('node_modules')) {
             if (id.includes('react')) return 'vendor-react';
-            if (id.includes('apexcharts') || id.includes('leaflet')) return 'vendor-viz';
+            if (id.includes('apexcharts')) return 'vendor-charts';
+            if (id.includes('leaflet')) return 'vendor-map';
             return 'vendor';
           }
         },

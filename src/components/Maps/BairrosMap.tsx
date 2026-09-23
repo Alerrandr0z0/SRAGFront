@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { GeoJSON, MapContainer, TileLayer, useMap } from 'react-leaflet';
+import type L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { Feature, FeatureCollection, Geometry } from 'geojson';
 import type { TerritoryEntity } from '../../service/srag/sragClient';
@@ -76,7 +77,7 @@ const BairrosMap: React.FC<BairrosMapProps> = ({ entities, zonas = [] }) => {
   }, []);
 
   useEffect(() => {
-    fetch('/geo/mossoro_bairros.geojson')
+    fetch('/geo/mossoro_bairros.geojson?v=sinan30b')
       .then((res) => res.json())
       .then((data: FeatureCollection) => setGeo(data))
       .catch(() => setGeo(null));
@@ -139,6 +140,21 @@ const BairrosMap: React.FC<BairrosMapProps> = ({ entities, zonas = [] }) => {
     }));
   }, [geo, byBairro]);
 
+  const geoJsonRef = useRef<L.GeoJSON | null>(null);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: updates layer styles in-place without unmounting SVG nodes
+  useEffect(() => {
+    if (geoJsonRef.current) {
+      geoJsonRef.current.eachLayer((layer) => {
+        if ('setStyle' in layer && typeof layer.setStyle === 'function') {
+          const feature = (layer as unknown as { feature?: BairroFeature }).feature;
+          const count = Number(feature?.properties?.count ?? 0);
+          layer.setStyle(styleFor(count));
+        }
+      });
+    }
+  }, [rangeMin, rangeMax, hoverValue, hoveringBar, isDark, maxVal]);
+
   const zonaStats = useMemo(() => {
     const urbana = zonas.find((z) => normalizeBairroName(z.label) === 'URBANA')?.count ?? 0;
     const rural = zonas.find((z) => normalizeBairroName(z.label) === 'RURAL')?.count ?? 0;
@@ -177,14 +193,9 @@ const BairrosMap: React.FC<BairrosMapProps> = ({ entities, zonas = [] }) => {
             <DarkModeTileFilter isDark={isDark} />
             {features.length > 0 && (
               <GeoJSON
-                key={JSON.stringify([
-                  features.map((f) => f.properties?.count),
-                  rangeMin,
-                  rangeMax,
-                  hoverValue,
-                  hoveringBar,
-                  isDark,
-                ])}
+                // Key changes only when underlying data changes (new ingest), not on hover/slider
+                key={JSON.stringify(features.map((f) => f.properties?.count))}
+                ref={geoJsonRef}
                 data={{ type: 'FeatureCollection', features } as FeatureCollection}
                 style={(feature) => {
                   const props = (feature?.properties ?? {}) as { bairro?: string; count?: number };

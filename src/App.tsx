@@ -1,18 +1,18 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import Loader from './components/Loader';
 import PageTitle from './components/PageTitle';
 import ProtectedRoute from './components/ProtectedRoute';
-import SignIn from './pages/Authentication/Login';
-import ManageUsers from './pages/Authentication/ManageUsers';
-import DadosGerais from './pages/Dashboard/DadosGerais';
-import GerenciarDados from './pages/Dashboard/GerenciarDados';
-import Sociodemografica from './pages/Dashboard/Sociodemografica';
-import Profile from './pages/Profile';
+
+const SignIn = lazy(() => import('./pages/Authentication/Login'));
+const ManageUsers = lazy(() => import('./pages/Authentication/ManageUsers'));
+const DadosGerais = lazy(() => import('./pages/Dashboard/DadosGerais'));
+const GerenciarDados = lazy(() => import('./pages/Dashboard/GerenciarDados'));
+const Sociodemografica = lazy(() => import('./pages/Dashboard/Sociodemografica'));
+const Profile = lazy(() => import('./pages/Profile'));
 
 function App() {
-  const [loading, setLoading] = useState<boolean>(true);
   const { pathname } = useLocation();
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: rerun on route change
@@ -20,13 +20,8 @@ function App() {
     window.scrollTo(0, 0);
   }, [pathname]);
 
-  useEffect(() => {
-    setTimeout(() => setLoading(false), 1000);
-  }, []);
-
-  return loading ? (
-    <Loader />
-  ) : (
+  return (
+    <Suspense fallback={<Loader />}>
     <Routes>
       <Route
         index
@@ -94,6 +89,7 @@ function App() {
       <Route path="/auth/registrar" element={<Navigate to="/usuarios" replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
   );
 }
 
