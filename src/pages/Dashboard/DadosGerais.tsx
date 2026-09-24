@@ -6,7 +6,10 @@ import TrendChart from '../../components/Charts/TrendChart';
 import { CountCard } from '../../components/CountCard';
 import AgentSelector from '../../components/Forms/SelectGroup/AgentSelector';
 import BairroSelector from '../../components/Forms/SelectGroup/BairroSelector';
+import BaseAnaliseSelector from '../../components/Forms/SelectGroup/BaseAnaliseSelector';
 import ClassiSelector from '../../components/Forms/SelectGroup/ClassiSelector';
+import GravidadeSelector from '../../components/Forms/SelectGroup/GravidadeSelector';
+import SintomasSelector from '../../components/Forms/SelectGroup/SintomasSelector';
 import YearSelector from '../../components/Forms/SelectGroup/YearSelector';
 import DefaultLayout from '../../layout/DefaultLayout';
 import {
@@ -66,6 +69,16 @@ const DadosGerais: React.FC = () => {
     return localStorage.getItem('classiSelected') || '';
   });
   const [bairroSelected, setBairroSelected] = useState<string>('');
+  const [baseSelected, setBaseSelected] = useState<string>(() => {
+    return localStorage.getItem('baseSelected') || '';
+  });
+  const [gravidadeSelected, setGravidadeSelected] = useState<string>(() => {
+    return localStorage.getItem('gravidadeSelected') || '';
+  });
+  const [sintomasSelected, setSintomasSelected] = useState<string[]>(() => {
+    const stored = localStorage.getItem('sintomasSelected');
+    return stored ? (JSON.parse(stored) as string[]) : [];
+  });
 
   const bairrosDisponiveis = useMemo(
     () =>
@@ -103,6 +116,9 @@ const DadosGerais: React.FC = () => {
         agent: agentSelected || undefined,
         bairro: bairroSelected || undefined,
         classi: classiSelected || undefined,
+        base: baseSelected || undefined,
+        gravidade: gravidadeSelected || undefined,
+        sintomas: sintomasSelected.length > 0 ? sintomasSelected : undefined,
       };
       try {
         const results = await Promise.allSettled([
@@ -119,6 +135,9 @@ const DadosGerais: React.FC = () => {
         localStorage.setItem('yearSelected', yearSelected);
         localStorage.setItem('agentSelected', agentSelected);
         localStorage.setItem('classiSelected', classiSelected);
+        localStorage.setItem('baseSelected', baseSelected);
+        localStorage.setItem('gravidadeSelected', gravidadeSelected);
+        localStorage.setItem('sintomasSelected', JSON.stringify(sintomasSelected));
       } catch (err) {
         console.error('Erro ao carregar dados SRAG:', err);
         setError('Não foi possível carregar os dados SRAG. Verifique se o backend está no ar.');
@@ -129,7 +148,15 @@ const DadosGerais: React.FC = () => {
     };
 
     loadData();
-  }, [yearSelected, agentSelected, bairroSelected, classiSelected]);
+  }, [
+    yearSelected,
+    agentSelected,
+    bairroSelected,
+    classiSelected,
+    baseSelected,
+    gravidadeSelected,
+    sintomasSelected,
+  ]);
 
   const trendOptions: ApexOptions = useMemo(
     () => ({
@@ -216,6 +243,15 @@ const DadosGerais: React.FC = () => {
         />
         <AgentSelector agentSelected={agentSelected} setAgentSelected={setAgentSelected} />
         <ClassiSelector classiSelected={classiSelected} setClassiSelected={setClassiSelected} />
+        <BaseAnaliseSelector baseSelected={baseSelected} setBaseSelected={setBaseSelected} />
+        <GravidadeSelector
+          gravidadeSelected={gravidadeSelected}
+          setGravidadeSelected={setGravidadeSelected}
+        />
+        <SintomasSelector
+          sintomasSelected={sintomasSelected}
+          setSintomasSelected={setSintomasSelected}
+        />
       </div>
 
       <div

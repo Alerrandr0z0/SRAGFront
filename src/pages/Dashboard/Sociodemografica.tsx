@@ -7,7 +7,10 @@ import ParetoChart from '../../components/Charts/ParetoChart';
 import { CountCard } from '../../components/CountCard';
 import AgentSelector from '../../components/Forms/SelectGroup/AgentSelector';
 import BairroSelector from '../../components/Forms/SelectGroup/BairroSelector';
+import BaseAnaliseSelector from '../../components/Forms/SelectGroup/BaseAnaliseSelector';
 import ClassiSelector from '../../components/Forms/SelectGroup/ClassiSelector';
+import GravidadeSelector from '../../components/Forms/SelectGroup/GravidadeSelector';
+import SintomasSelector from '../../components/Forms/SelectGroup/SintomasSelector';
 import YearSelector from '../../components/Forms/SelectGroup/YearSelector';
 import BairrosMap from '../../components/Maps/BairrosMap';
 import BaseTable from '../../components/Tables/BaseTable';
@@ -73,6 +76,16 @@ const Sociodemografica: React.FC = () => {
   });
   const [bairroSelected, setBairroSelected] = useState('');
   const [bairrosDisponiveis, setBairrosDisponiveis] = useState<string[]>([]);
+  const [baseSelected, setBaseSelected] = useState<string>(() => {
+    return localStorage.getItem('baseSelected') || '';
+  });
+  const [gravidadeSelected, setGravidadeSelected] = useState<string>(() => {
+    return localStorage.getItem('gravidadeSelected') || '';
+  });
+  const [sintomasSelected, setSintomasSelected] = useState<string[]>(() => {
+    const stored = localStorage.getItem('sintomasSelected');
+    return stored ? (JSON.parse(stored) as string[]) : [];
+  });
 
   const [race, setRace] = useState<ProfileItem[]>([]);
   const [schooling, setSchooling] = useState<ProfileItem[]>([]);
@@ -160,6 +173,9 @@ const Sociodemografica: React.FC = () => {
       agent: agentSelected || undefined,
       bairro: bairroSelected || undefined,
       classi: classiSelected || undefined,
+      base: baseSelected || undefined,
+      gravidade: gravidadeSelected || undefined,
+      sintomas: sintomasSelected.length > 0 ? sintomasSelected : undefined,
     };
     setLoading(true);
     try {
@@ -189,6 +205,9 @@ const Sociodemografica: React.FC = () => {
       );
       localStorage.setItem('yearSelected', yearSelected);
       localStorage.setItem('classiSelected', classiSelected);
+      localStorage.setItem('baseSelected', baseSelected);
+      localStorage.setItem('gravidadeSelected', gravidadeSelected);
+      localStorage.setItem('sintomasSelected', JSON.stringify(sintomasSelected));
     } catch {
       setRace([]);
       setVacCovid([]);
@@ -209,7 +228,15 @@ const Sociodemografica: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [yearSelected, agentSelected, bairroSelected, classiSelected]);
+  }, [
+    yearSelected,
+    agentSelected,
+    bairroSelected,
+    classiSelected,
+    baseSelected,
+    gravidadeSelected,
+    sintomasSelected,
+  ]);
 
   useEffect(() => {
     fetchData();
@@ -242,6 +269,15 @@ const Sociodemografica: React.FC = () => {
         />
         <AgentSelector agentSelected={agentSelected} setAgentSelected={setAgentSelected} />
         <ClassiSelector classiSelected={classiSelected} setClassiSelected={setClassiSelected} />
+        <BaseAnaliseSelector baseSelected={baseSelected} setBaseSelected={setBaseSelected} />
+        <GravidadeSelector
+          gravidadeSelected={gravidadeSelected}
+          setGravidadeSelected={setGravidadeSelected}
+        />
+        <SintomasSelector
+          sintomasSelected={sintomasSelected}
+          setSintomasSelected={setSintomasSelected}
+        />
       </div>
 
       {loading ? (
@@ -333,6 +369,9 @@ const Sociodemografica: React.FC = () => {
                   year: yearSelected || undefined,
                   agent: agentSelected || undefined,
                   classi: classiSelected || undefined,
+                  base: baseSelected || undefined,
+                  gravidade: gravidadeSelected || undefined,
+                  sintomas: sintomasSelected.length > 0 ? sintomasSelected : undefined,
                 })}
               />
             </div>
