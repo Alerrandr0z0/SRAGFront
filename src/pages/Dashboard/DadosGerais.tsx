@@ -18,6 +18,7 @@ import {
   sragLineOptions,
 } from '../../service/srag/sragChartOptions';
 import type { NeighborhoodInfo } from '../../service/srag/sragClient';
+import type { SragFilters } from '../../service/srag/sragFilters';
 import {
   loadSragAvailableYears,
   loadSragCards,
@@ -43,6 +44,60 @@ const EMPTY_CARDS: SragCards = {
   gestantes: 0,
   bairrosAfetados: 0,
 };
+
+interface DadosGeraisSetters {
+  setTrendSeries: React.Dispatch<React.SetStateAction<{ name: string; data: number[] }[]>>;
+  setTrendCategories: React.Dispatch<React.SetStateAction<string[]>>;
+  setTrendCumulative: React.Dispatch<React.SetStateAction<number[]>>;
+  setSexoSeries: React.Dispatch<React.SetStateAction<number[]>>;
+  setAgenteSeries: React.Dispatch<React.SetStateAction<number[]>>;
+  setAgenteLabels: React.Dispatch<React.SetStateAction<string[]>>;
+  setNeighborhoodData: React.Dispatch<React.SetStateAction<NeighborhoodInfo[]>>;
+  setCards: React.Dispatch<React.SetStateAction<SragCards>>;
+}
+
+// Extraído de loadData só pra manter a complexidade cognitiva da função dentro
+// do limite do linter — o Promise.allSettled + checagem de falhas parciais
+// não precisa morar no mesmo escopo do try/catch/finally do efeito.
+async function fetchDadosGeraisData(
+  filters: SragFilters,
+  setters: DadosGeraisSetters,
+): Promise<void> {
+  const results = await Promise.allSettled([
+    mountSragTrends(
+      setters.setTrendSeries,
+      setters.setTrendCategories,
+      filters,
+      setters.setTrendCumulative,
+    ),
+    mountSragSexo(setters.setSexoSeries, filters),
+    mountSragAgente(setters.setAgenteSeries, setters.setAgenteLabels, filters),
+    mountSragBairros((d) => setters.setNeighborhoodData(d as NeighborhoodInfo[]), filters),
+    loadSragCards(setters.setCards, filters),
+  ]);
+  const failed = results.filter((r) => r.status === 'rejected');
+  if (failed.length > 0) {
+    console.error('Falhas parciais SRAG:', failed);
+  }
+}
+
+interface PersistedDadosGeraisFilters {
+  year: string;
+  agent: string;
+  classi: string;
+  base: string;
+  gravidade: string;
+  sintomas: string[];
+}
+
+function persistDadosGeraisFilters(filters: PersistedDadosGeraisFilters): void {
+  localStorage.setItem('yearSelected', filters.year);
+  localStorage.setItem('agentSelected', filters.agent);
+  localStorage.setItem('classiSelected', filters.classi);
+  localStorage.setItem('baseSelected', filters.base);
+  localStorage.setItem('gravidadeSelected', filters.gravidade);
+  localStorage.setItem('sintomasSelected', JSON.stringify(filters.sintomas));
+}
 
 const DadosGerais: React.FC = () => {
   const [trendSeries, setTrendSeries] = useState<{ name: string; data: number[] }[]>([]);
@@ -111,7 +166,7 @@ const DadosGerais: React.FC = () => {
     const loadData = async () => {
       setLoading(true);
       setError(null);
-      const filters = {
+      const filters: SragFilters = {
         year: yearSelected || undefined,
         agent: agentSelected || undefined,
         bairro: bairroSelected || undefined,
@@ -121,23 +176,24 @@ const DadosGerais: React.FC = () => {
         sintomas: sintomasSelected.length > 0 ? sintomasSelected : undefined,
       };
       try {
-        const results = await Promise.allSettled([
-          mountSragTrends(setTrendSeries, setTrendCategories, filters, setTrendCumulative),
-          mountSragSexo(setSexoSeries, filters),
-          mountSragAgente(setAgenteSeries, setAgenteLabels, filters),
-          mountSragBairros((d) => setNeighborhoodData(d as NeighborhoodInfo[]), filters),
-          loadSragCards(setCards, filters),
-        ]);
-        const failed = results.filter((r) => r.status === 'rejected');
-        if (failed.length > 0) {
-          console.error('Falhas parciais SRAG:', failed);
-        }
-        localStorage.setItem('yearSelected', yearSelected);
-        localStorage.setItem('agentSelected', agentSelected);
-        localStorage.setItem('classiSelected', classiSelected);
-        localStorage.setItem('baseSelected', baseSelected);
-        localStorage.setItem('gravidadeSelected', gravidadeSelected);
-        localStorage.setItem('sintomasSelected', JSON.stringify(sintomasSelected));
+        await fetchDadosGeraisData(filters, {
+          setTrendSeries,
+          setTrendCategories,
+          setTrendCumulative,
+          setSexoSeries,
+          setAgenteSeries,
+          setAgenteLabels,
+          setNeighborhoodData,
+          setCards,
+        });
+        persistDadosGeraisFilters({
+          year: yearSelected,
+          agent: agentSelected,
+          classi: classiSelected,
+          base: baseSelected,
+          gravidade: gravidadeSelected,
+          sintomas: sintomasSelected,
+        });
       } catch (err) {
         console.error('Erro ao carregar dados SRAG:', err);
         setError('Não foi possível carregar os dados SRAG. Verifique se o backend está no ar.');
