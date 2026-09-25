@@ -28,7 +28,7 @@ import {
   type TerritoryEntity,
 } from '../../service/srag/sragClient';
 import { mountSragComorbidades } from '../../service/srag/sragDashboard';
-import { buildSragQueryParams } from '../../service/srag/sragFilters';
+import { buildSragQueryParams, type SragFilters } from '../../service/srag/sragFilters';
 import {
   type ComorbiditiesPareto,
   mapComorbiditiesToPareto,
@@ -42,6 +42,93 @@ import {
 interface ProfileItem {
   label: string;
   count: number;
+}
+
+interface SociodemograficaSetters {
+  setRace: React.Dispatch<React.SetStateAction<ProfileItem[]>>;
+  setVacCovid: React.Dispatch<React.SetStateAction<ProfileItem[]>>;
+  setVacGripe: React.Dispatch<React.SetStateAction<ProfileItem[]>>;
+  setGestantes: React.Dispatch<React.SetStateAction<number>>;
+  setSchooling: React.Dispatch<React.SetStateAction<ProfileItem[]>>;
+  setPareto: React.Dispatch<React.SetStateAction<ComorbiditiesPareto>>;
+  setPyramid: React.Dispatch<React.SetStateAction<PopulationPyramidSeries>>;
+  setAgePareto: React.Dispatch<React.SetStateAction<ComorbiditiesPareto>>;
+  setZonas: React.Dispatch<React.SetStateAction<ProfileItem[]>>;
+  setMapEntities: React.Dispatch<React.SetStateAction<TerritoryEntity[]>>;
+}
+
+type FetchSociodemograficaSetters = SociodemograficaSetters & {
+  setBairrosDisponiveis: React.Dispatch<React.SetStateAction<string[]>>;
+};
+
+// Extraído de fetchData (caminho "feliz") só pra manter a complexidade
+// cognitiva da função dentro do limite do linter.
+async function fetchSociodemograficaData(
+  filters: SragFilters,
+  setters: FetchSociodemograficaSetters,
+): Promise<void> {
+  const [citizen, territory, vac] = await Promise.all([
+    getSragCitizen(filters),
+    getSragTerritory(filters),
+    getSragVaccination(filters).catch(() => null),
+    mountSragComorbidades(setters.setPareto, filters),
+  ]);
+  setters.setRace(citizen?.race_profile ?? []);
+  setters.setVacCovid(citizen?.covid_vaccination_profile ?? []);
+  setters.setVacGripe(vac?.gripe_donut ?? []);
+  setters.setGestantes(
+    mapMaternalToCount(citizen?.maternal_profile as Record<string, unknown> | undefined),
+  );
+  setters.setSchooling(citizen?.schooling_profile ?? []);
+  setters.setPyramid(mapPopulationPyramid(citizen?.population_pyramid ?? []));
+  setters.setAgePareto(mapComorbiditiesToPareto(citizen?.age_pareto ?? []));
+  setters.setZonas(
+    (territory?.territory?.zonas ?? []).map((z) => ({ label: z.zona, count: z.count })),
+  );
+  const bairros = territory?.territory?.bairros ?? [];
+  setters.setMapEntities(bairros);
+  setters.setBairrosDisponiveis(
+    bairros
+      .map((e) => e.bairro)
+      .filter(Boolean)
+      .sort(),
+  );
+}
+
+// Extraído do catch de fetchData pelo mesmo motivo.
+function resetSociodemograficaState(setters: SociodemograficaSetters): void {
+  setters.setRace([]);
+  setters.setVacCovid([]);
+  setters.setVacGripe([]);
+  setters.setGestantes(0);
+  setters.setSchooling([]);
+  setters.setPareto({ labels: [], bars: [], cumulative: [] });
+  setters.setPyramid({
+    categories: [],
+    male: { name: 'Masculino', data: [] },
+    female: { name: 'Feminino', data: [] },
+    maleDetail: [],
+    femaleDetail: [],
+  });
+  setters.setAgePareto({ labels: [], bars: [], cumulative: [] });
+  setters.setZonas([]);
+  setters.setMapEntities([]);
+}
+
+interface PersistedSociodemograficaFilters {
+  year: string;
+  classi: string;
+  base: string;
+  gravidade: string;
+  sintomas: string[];
+}
+
+function persistSociodemograficaFilters(filters: PersistedSociodemograficaFilters): void {
+  localStorage.setItem('yearSelected', filters.year);
+  localStorage.setItem('classiSelected', filters.classi);
+  localStorage.setItem('baseSelected', filters.base);
+  localStorage.setItem('gravidadeSelected', filters.gravidade);
+  localStorage.setItem('sintomasSelected', JSON.stringify(filters.sintomas));
 }
 
 function topItem(items: ProfileItem[]): ProfileItem | undefined {
@@ -168,7 +255,7 @@ const Sociodemografica: React.FC = () => {
   }, []);
 
   const fetchData = useCallback(async () => {
-    const filters = {
+    const filters: SragFilters = {
       year: yearSelected || undefined,
       agent: agentSelected || undefined,
       bairro: bairroSelected || undefined,
@@ -179,52 +266,39 @@ const Sociodemografica: React.FC = () => {
     };
     setLoading(true);
     try {
-      const [citizen, territory, vac] = await Promise.all([
-        getSragCitizen(filters),
-        getSragTerritory(filters),
-        getSragVaccination(filters).catch(() => null),
-        mountSragComorbidades(setPareto, filters),
-      ]);
-      setRace(citizen?.race_profile ?? []);
-      setVacCovid(citizen?.covid_vaccination_profile ?? []);
-      setVacGripe(vac?.gripe_donut ?? []);
-      setGestantes(
-        mapMaternalToCount(citizen?.maternal_profile as Record<string, unknown> | undefined),
-      );
-      setSchooling(citizen?.schooling_profile ?? []);
-      setPyramid(mapPopulationPyramid(citizen?.population_pyramid ?? []));
-      setAgePareto(mapComorbiditiesToPareto(citizen?.age_pareto ?? []));
-      setZonas((territory?.territory?.zonas ?? []).map((z) => ({ label: z.zona, count: z.count })));
-      const bairros = territory?.territory?.bairros ?? [];
-      setMapEntities(bairros);
-      setBairrosDisponiveis(
-        bairros
-          .map((e) => e.bairro)
-          .filter(Boolean)
-          .sort(),
-      );
-      localStorage.setItem('yearSelected', yearSelected);
-      localStorage.setItem('classiSelected', classiSelected);
-      localStorage.setItem('baseSelected', baseSelected);
-      localStorage.setItem('gravidadeSelected', gravidadeSelected);
-      localStorage.setItem('sintomasSelected', JSON.stringify(sintomasSelected));
-    } catch {
-      setRace([]);
-      setVacCovid([]);
-      setVacGripe([]);
-      setGestantes(0);
-      setSchooling([]);
-      setPareto({ labels: [], bars: [], cumulative: [] });
-      setPyramid({
-        categories: [],
-        male: { name: 'Masculino', data: [] },
-        female: { name: 'Feminino', data: [] },
-        maleDetail: [],
-        femaleDetail: [],
+      await fetchSociodemograficaData(filters, {
+        setRace,
+        setVacCovid,
+        setVacGripe,
+        setGestantes,
+        setSchooling,
+        setPyramid,
+        setAgePareto,
+        setZonas,
+        setMapEntities,
+        setBairrosDisponiveis,
+        setPareto,
       });
-      setAgePareto({ labels: [], bars: [], cumulative: [] });
-      setZonas([]);
-      setMapEntities([]);
+      persistSociodemograficaFilters({
+        year: yearSelected,
+        classi: classiSelected,
+        base: baseSelected,
+        gravidade: gravidadeSelected,
+        sintomas: sintomasSelected,
+      });
+    } catch {
+      resetSociodemograficaState({
+        setRace,
+        setVacCovid,
+        setVacGripe,
+        setGestantes,
+        setSchooling,
+        setPareto,
+        setPyramid,
+        setAgePareto,
+        setZonas,
+        setMapEntities,
+      });
     } finally {
       setLoading(false);
     }
