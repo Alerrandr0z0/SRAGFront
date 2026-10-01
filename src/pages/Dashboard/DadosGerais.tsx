@@ -298,7 +298,7 @@ const DadosGerais: React.FC = () => {
           minYear={minYear}
         />
         <AgentSelector agentSelected={agentSelected} setAgentSelected={setAgentSelected} />
-        <ClassiSelector classiSelected={classiSelected} setClassiSelected={setClassiSelected} />
+        <ClassiSelector agentSelected={agentSelected} classiSelected={classiSelected} setClassiSelected={setClassiSelected} />
         <BaseAnaliseSelector baseSelected={baseSelected} setBaseSelected={setBaseSelected} />
         <GravidadeSelector
           gravidadeSelected={gravidadeSelected}
