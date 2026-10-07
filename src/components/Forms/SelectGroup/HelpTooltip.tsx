@@ -15,11 +15,11 @@ const HelpTooltip: React.FC<HelpTooltipProps> = ({ text }) => {
       >
         ?
       </button>
-        <span
-            role="tooltip"
-            className="pointer-events-none absolute top-full right-0 z-50 mt-2 hidden w-96 rounded border border-stroke bg-white p-3 text-left text-sm font-normal normal-case leading-relaxed text-black shadow-default group-hover:block group-focus-within:block dark:border-strokedark dark:bg-boxdark dark:text-white"
-        >
-            {text}
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute top-full right-0 z-50 mt-2 hidden w-96 rounded border border-stroke bg-white p-3 text-left text-sm font-normal normal-case leading-relaxed text-black shadow-default group-hover:block group-focus-within:block dark:border-strokedark dark:bg-boxdark dark:text-white"
+      >
+        {text}
       </span>
     </span>
   );

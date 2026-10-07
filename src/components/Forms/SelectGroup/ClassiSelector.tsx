@@ -1,9 +1,8 @@
 import type React from 'react';
-import { useState } from 'react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 interface ClassiSelectorProps {
-  agentSelected: string; 
+  agentSelected: string;
   classiSelected: string;
   setClassiSelected: (value: string) => void;
 }
@@ -31,23 +30,23 @@ const ClassiSelector: React.FC<ClassiSelectorProps> = ({
   const isInfluenza = agentSelected === '1' || agentSelected?.toUpperCase() === 'INFLUENZA';
 
   const classisFiltradas = CLASSIS.filter((c) =>
-    isInfluenza ? c.value !== '11' : c.value === '11'
+    isInfluenza ? c.value !== '11' : c.value === '11',
   );
 
   useEffect(() => {
     if (!isInfluenza && classiSelected !== '11') {
-      setClassiSelected('11'); 
+      setClassiSelected('11');
     } else if (isInfluenza && classiSelected === '11') {
-      setClassiSelected('1'); 
+      setClassiSelected('1');
     }
-  }, [agentSelected, isInfluenza, classiSelected, setClassiSelected]);
+  }, [isInfluenza, classiSelected, setClassiSelected]);
 
   return (
     <div className="mb-4.5">
       <div className="relative z-20 bg-transparent dark:bg-form-input">
         <select
           value={classiSelected}
-          disabled={!isInfluenza} 
+          disabled={!isInfluenza}
           onChange={(e) => {
             setClassiSelected(e.target.value);
             setTouched(true);

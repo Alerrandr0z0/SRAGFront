@@ -22,73 +22,73 @@ function App() {
 
   return (
     <Suspense fallback={<Loader />}>
-    <Routes>
-      <Route
-        index
-        element={
-          <ProtectedRoute>
-            <PageTitle title="Vigilância" />
-            <DadosGerais />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/dashboard/dadosGerais"
-        element={
-          <ProtectedRoute>
-            <PageTitle title="Vigilância" />
-            <DadosGerais />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/dashboard/sociodemografica"
-        element={
-          <ProtectedRoute>
-            <PageTitle title="Sociodemográfico SRAG" />
-            <Sociodemografica />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/dashboard/gerenciar"
-        element={
-          <ProtectedRoute>
-            <PageTitle title="Gerenciar Dados SRAG" />
-            <GerenciarDados />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/perfil"
-        element={
-          <ProtectedRoute>
-            <PageTitle title="Meu Perfil" />
-            <Profile />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/auth/login"
-        element={
-          <>
-            <PageTitle title="Login" />
-            <SignIn />
-          </>
-        }
-      />
-      <Route
-        path="/usuarios"
-        element={
-          <ProtectedRoute requiredRole="ADMIN">
-            <PageTitle title="Gerenciar Usuários" />
-            <ManageUsers />
-          </ProtectedRoute>
-        }
-      />
-      <Route path="/auth/registrar" element={<Navigate to="/usuarios" replace />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+      <Routes>
+        <Route
+          index
+          element={
+            <ProtectedRoute>
+              <PageTitle title="Vigilância" />
+              <DadosGerais />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/dadosGerais"
+          element={
+            <ProtectedRoute>
+              <PageTitle title="Vigilância" />
+              <DadosGerais />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/sociodemografica"
+          element={
+            <ProtectedRoute>
+              <PageTitle title="Sociodemográfico SRAG" />
+              <Sociodemografica />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/gerenciar"
+          element={
+            <ProtectedRoute>
+              <PageTitle title="Gerenciar Dados SRAG" />
+              <GerenciarDados />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/perfil"
+          element={
+            <ProtectedRoute>
+              <PageTitle title="Meu Perfil" />
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/auth/login"
+          element={
+            <>
+              <PageTitle title="Login" />
+              <SignIn />
+            </>
+          }
+        />
+        <Route
+          path="/usuarios"
+          element={
+            <ProtectedRoute requiredRole="ADMIN">
+              <PageTitle title="Gerenciar Usuários" />
+              <ManageUsers />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/auth/registrar" element={<Navigate to="/usuarios" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </Suspense>
   );
 }
