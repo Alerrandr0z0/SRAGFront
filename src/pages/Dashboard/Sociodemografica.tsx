@@ -161,7 +161,7 @@ const Sociodemografica: React.FC = () => {
   const [classiSelected, setClassiSelected] = useState<string>(() => {
     return localStorage.getItem('classiSelected') || '';
   });
-  
+
   const [bairroSelected, setBairroSelected] = useState('');
   const [bairrosDisponiveis, setBairrosDisponiveis] = useState<string[]>([]);
   const [baseSelected, setBaseSelected] = useState<string>(() => {
@@ -343,7 +343,11 @@ const Sociodemografica: React.FC = () => {
           minYear={minYear}
         />
         <AgentSelector agentSelected={agentSelected} setAgentSelected={setAgentSelected} />
-        <ClassiSelector agentSelected={agentSelected} classiSelected={classiSelected} setClassiSelected={setClassiSelected} />
+        <ClassiSelector
+          agentSelected={agentSelected}
+          classiSelected={classiSelected}
+          setClassiSelected={setClassiSelected}
+        />
         <BaseAnaliseSelector baseSelected={baseSelected} setBaseSelected={setBaseSelected} />
         <GravidadeSelector
           gravidadeSelected={gravidadeSelected}

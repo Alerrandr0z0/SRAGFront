@@ -221,12 +221,9 @@ export async function downloadErrorsPdf(params: {
   if (params.end_date) sp.set('end_date', params.end_date);
   if (params.agent) sp.set('agent', params.agent);
   const query = sp.toString();
-  const response = await api.get(
-    `/manage/errors/pdf${query ? `?${query}` : ''}`,
-    {
-      responseType: 'blob',
-    },
-  );
+  const response = await api.get(`/manage/errors/pdf${query ? `?${query}` : ''}`, {
+    responseType: 'blob',
+  });
   const disposition: string = response.headers?.['content-disposition'] ?? '';
   const match = disposition.match(/filename=([^;]+)/);
   const filename = (match?.[1] ?? 'erros-todos.pdf').replace(/["']/g, '');

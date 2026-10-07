@@ -1,7 +1,7 @@
+import type L from 'leaflet';
 import type React from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { GeoJSON, MapContainer, TileLayer, useMap } from 'react-leaflet';
-import type L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { Feature, FeatureCollection, Geometry } from 'geojson';
 import type { TerritoryEntity } from '../../service/srag/sragClient';

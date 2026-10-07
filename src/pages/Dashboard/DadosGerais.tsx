@@ -18,7 +18,6 @@ import {
   sragLineOptions,
 } from '../../service/srag/sragChartOptions';
 import type { NeighborhoodInfo } from '../../service/srag/sragClient';
-import type { SragFilters } from '../../service/srag/sragFilters';
 import {
   loadSragAvailableYears,
   loadSragCards,
@@ -28,6 +27,7 @@ import {
   mountSragTrends,
   type SragCards,
 } from '../../service/srag/sragDashboard';
+import type { SragFilters } from '../../service/srag/sragFilters';
 
 const lineChartBaseOptions: ApexOptions = sragLineOptions();
 const donutSexoOptions: ApexOptions = sragDonutSexoOptions();
@@ -298,7 +298,11 @@ const DadosGerais: React.FC = () => {
           minYear={minYear}
         />
         <AgentSelector agentSelected={agentSelected} setAgentSelected={setAgentSelected} />
-        <ClassiSelector agentSelected={agentSelected} classiSelected={classiSelected} setClassiSelected={setClassiSelected} />
+        <ClassiSelector
+          agentSelected={agentSelected}
+          classiSelected={classiSelected}
+          setClassiSelected={setClassiSelected}
+        />
         <BaseAnaliseSelector baseSelected={baseSelected} setBaseSelected={setBaseSelected} />
         <GravidadeSelector
           gravidadeSelected={gravidadeSelected}
