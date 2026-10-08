@@ -23,6 +23,7 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
+            if (id.includes('echarts') || id.includes('zrender')) return 'vendor-echarts';
             if (id.includes('react')) return 'vendor-react';
             if (id.includes('apexcharts')) return 'vendor-charts';
             if (id.includes('leaflet')) return 'vendor-map';
