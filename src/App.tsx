@@ -8,6 +8,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 const SignIn = lazy(() => import('./pages/Authentication/Login'));
 const ManageUsers = lazy(() => import('./pages/Authentication/ManageUsers'));
 const DadosGerais = lazy(() => import('./pages/Dashboard/DadosGerais'));
+const GraficosAnaliticos = lazy(() => import('./pages/Dashboard/GraficosAnaliticos'));
 const GerenciarDados = lazy(() => import('./pages/Dashboard/GerenciarDados'));
 const Sociodemografica = lazy(() => import('./pages/Dashboard/Sociodemografica'));
 const Profile = lazy(() => import('./pages/Profile'));
@@ -47,6 +48,15 @@ function App() {
             <ProtectedRoute>
               <PageTitle title="Sociodemográfico SRAG" />
               <Sociodemografica />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/analiticos"
+          element={
+            <ProtectedRoute>
+              <PageTitle title="Gráficos analíticos" />
+              <GraficosAnaliticos />
             </ProtectedRoute>
           }
         />
