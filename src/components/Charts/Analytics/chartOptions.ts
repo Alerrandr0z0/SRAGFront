@@ -1,6 +1,20 @@
 import type {
+  AntiviralWindow,
+  AntiviralWindowsResponse,
   ClinicalFlowResponse,
+  DiagnosticLethalityMethod,
+  DiagnosticLethalityResponse,
+  DiagnosticMethodsPeriod,
+  DiagnosticMethodsResponse,
+  IcuAccessPeriod,
+  IcuAccessResponse,
+  IcuGranularity,
+  ImagingFinding,
+  NosocomialPeriod,
+  NosocomialRiskResponse,
   OddsRatioRow,
+  SamplePositivityResponse,
+  SamplePositivityRow,
   SignatureCell,
 } from '../../../service/srag/sragAnalytics';
 import type { ChartTheme } from './chartTheme';
@@ -301,6 +315,509 @@ export function buildHeatmapOption(
         },
         itemStyle: { borderColor: theme.tooltipBg, borderWidth: 2 },
       },
+    ],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Acesso à UTI — barras empilhadas (100%) por faixa de espera
+// ---------------------------------------------------------------------------
+
+const LIME = '#84CC16';
+const MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
+/** "2024" → "2024"; "2024-Q1" → "T1/2024"; "2024-03" → "mar/24". */
+export function formatPeriod(granularity: IcuGranularity, key: string): string {
+  if (granularity === 'quarter') {
+    const [year, quarter] = key.split('-Q');
+    return `T${quarter}/${year}`;
+  }
+  if (granularity === 'month') {
+    const [year = '', month = ''] = key.split('-');
+    return `${MONTHS[Number(month) - 1] ?? month}/${year.slice(2)}`;
+  }
+  return key;
+}
+
+/** Verde = rápido; amarelo e vermelho = espera acima do limite aceitável. */
+export const ICU_BANDS = [
+  { key: 'same_day', label: 'Mesmo dia', color: GREEN, text: '#FFFFFF' },
+  { key: 'd1_3', label: '1 a 3 dias (dentro do limite)', color: LIME, text: '#1C2434' },
+  { key: 'd4_7', label: '4 a 7 dias', color: AMBER, text: '#1C2434' },
+  { key: 'd8_plus', label: 'Mais de 7 dias', color: RED, text: '#FFFFFF' },
+] as const;
+
+export const percentOf = (count: number, total: number) => (total > 0 ? (count / total) * 100 : 0);
+
+export const formatPercent = (value: number) => `${value.toFixed(1).replace('.', ',')}%`;
+
+export function icuPeriodTooltip(period: IcuAccessPeriod, granularity: IcuGranularity): string {
+  const bands = ICU_BANDS.map((band) => {
+    const count = period[band.key];
+    return `${band.label}: <b>${count}</b> (${formatPercent(percentOf(count, period.total))})`;
+  });
+  const median =
+    period.median_wait_days === null
+      ? '—'
+      : `${String(period.median_wait_days).replace('.', ',')} dia(s)`;
+  return [
+    `<b>${formatPeriod(granularity, period.period)}</b>: ${period.total} admissões na UTI`,
+    ...bands,
+    `Mediana da espera (de quem esperou): ${median}`,
+  ].join('<br/>');
+}
+
+interface ShareBand<K extends string> {
+  key: K;
+  label: string;
+  color: string;
+  text: string;
+}
+
+type ShareRow<K extends string> = Record<K, number> & { total: number };
+
+/** Barras empilhadas em 100% por período, uma série por faixa. */
+function buildShareBarsOption<K extends string, R extends ShareRow<K>>(
+  periods: R[],
+  labelOf: (period: R) => string,
+  bands: readonly ShareBand<K>[],
+  tooltip: (period: R) => string,
+  theme: ChartTheme,
+): EChartsCoreOption {
+  return {
+    legend: { top: 0, data: bands.map((band) => band.label), textStyle: { color: theme.text } },
+    grid: { left: 48, right: 16, top: 44, bottom: 56 },
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      backgroundColor: theme.tooltipBg,
+      borderColor: theme.grid,
+      textStyle: { color: theme.tooltipText },
+      formatter: (raw: unknown) => {
+        const [first] = raw as { dataIndex: number }[];
+        const period = first ? periods[first.dataIndex] : undefined;
+        return period ? tooltip(period) : '';
+      },
+    },
+    xAxis: {
+      type: 'category',
+      data: periods.map((p) => `${labelOf(p)}\n(n=${p.total})`),
+      axisTick: { show: false },
+      axisLine: { lineStyle: { color: theme.grid } },
+      axisLabel: { color: theme.muted, interval: periods.length > 12 ? 'auto' : 0 },
+    },
+    yAxis: {
+      type: 'value',
+      min: 0,
+      max: 100,
+      axisLabel: { color: theme.muted, formatter: '{value}%' },
+      splitLine: { lineStyle: { color: theme.grid } },
+    },
+    series: bands.map((band) => ({
+      name: band.label,
+      type: 'bar',
+      stack: 'total',
+      barMaxWidth: 64,
+      itemStyle: { color: band.color },
+      label: {
+        show: true,
+        color: band.text,
+        formatter: (raw: unknown) => {
+          const value = (raw as { value: number }).value;
+          return value >= 8 ? `${Math.round(value)}%` : '';
+        },
+      },
+      data: periods.map((period) => percentOf(period[band.key], period.total)),
+    })),
+  };
+}
+
+export function buildIcuAccessOption(
+  data: IcuAccessResponse,
+  theme: ChartTheme,
+): EChartsCoreOption {
+  return buildShareBarsOption(
+    data.periods,
+    (period) => formatPeriod(data.granularity, period.period),
+    ICU_BANDS,
+    (period) => icuPeriodTooltip(period, data.granularity),
+    theme,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Confirmação diagnóstica — laboratório x clínico, por período
+// ---------------------------------------------------------------------------
+
+/** Tons de azul = confirmação laboratorial; âmbar e cinza = critério clínico. */
+export const DIAGNOSTIC_BANDS = [
+  { key: 'rt_pcr', label: 'RT-PCR', color: BLUE, text: '#FFFFFF' },
+  {
+    key: 'antigeno_outros',
+    label: 'Antígeno e outros laboratoriais',
+    color: '#80CAEE',
+    text: '#1C2434',
+  },
+  { key: 'clinico_epi', label: 'Clínico-epidemiológico', color: AMBER, text: '#1C2434' },
+  {
+    key: 'clinico_outros',
+    label: 'Clínico, imagem ou sem critério',
+    color: SLATE,
+    text: '#1C2434',
+  },
+] as const;
+
+export function diagnosticPeriodTooltip(
+  period: DiagnosticMethodsPeriod,
+  granularity: IcuGranularity,
+): string {
+  const bands = DIAGNOSTIC_BANDS.map((band) => {
+    const count = period[band.key];
+    return `${band.label}: <b>${count}</b> (${formatPercent(percentOf(count, period.total))})`;
+  });
+  return [
+    `<b>${formatPeriod(granularity, period.period)}</b>: ${period.total} casos`,
+    ...bands,
+  ].join('<br/>');
+}
+
+export function buildDiagnosticMethodsOption(
+  data: DiagnosticMethodsResponse,
+  theme: ChartTheme,
+): EChartsCoreOption {
+  return buildShareBarsOption(
+    data.periods,
+    (period) => formatPeriod(data.granularity, period.period),
+    DIAGNOSTIC_BANDS,
+    (period) => diagnosticPeriodTooltip(period, data.granularity),
+    theme,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Infecção hospitalar — % por período, com média e limite de alerta
+// ---------------------------------------------------------------------------
+
+export function nosocomialTooltip(period: NosocomialPeriod, granularity: IcuGranularity): string {
+  const lines = [
+    `<b>${formatPeriod(granularity, period.period)}</b>`,
+    `Infecção hospitalar: <b>${period.nosocomial}</b> de ${period.known} casos (${formatPercent(period.pct)})`,
+  ];
+  if (period.alert) lines.push('<b>Acima do limite de alerta</b>');
+  return lines.join('<br/>');
+}
+
+const referenceLine = (name: string, value: number, count: number, color: string) => ({
+  name,
+  type: 'line',
+  symbol: 'none',
+  silent: true,
+  lineStyle: { type: 'dashed', width: 2, color },
+  data: Array.from({ length: count }, () => value),
+});
+
+export function buildNosocomialOption(
+  data: NosocomialRiskResponse,
+  theme: ChartTheme,
+): EChartsCoreOption {
+  const { periods, granularity } = data;
+  const series: object[] = [
+    {
+      name: 'Infecção hospitalar',
+      type: 'bar',
+      barMaxWidth: 56,
+      data: periods.map((period) => ({
+        value: period.pct,
+        itemStyle: { color: period.alert ? RED : BLUE },
+      })),
+      label: {
+        show: true,
+        position: 'top',
+        color: theme.text,
+        formatter: (raw: unknown) => formatPercent((raw as { value: number }).value),
+      },
+    },
+  ];
+  if (data.mean_pct !== null) {
+    series.push(referenceLine('Média dos períodos', data.mean_pct, periods.length, theme.muted));
+  }
+  if (data.alert_limit_pct !== null) {
+    series.push(referenceLine('Limite de alerta', data.alert_limit_pct, periods.length, RED));
+  }
+
+  return {
+    legend: {
+      top: 0,
+      data: series.map((serie) => (serie as { name: string }).name),
+      textStyle: { color: theme.text },
+    },
+    grid: { left: 48, right: 16, top: 44, bottom: 56 },
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      backgroundColor: theme.tooltipBg,
+      borderColor: theme.grid,
+      textStyle: { color: theme.tooltipText },
+      formatter: (raw: unknown) => {
+        const [first] = raw as { dataIndex: number }[];
+        const period = first ? periods[first.dataIndex] : undefined;
+        return period ? nosocomialTooltip(period, granularity) : '';
+      },
+    },
+    xAxis: {
+      type: 'category',
+      data: periods.map((p) => `${formatPeriod(granularity, p.period)}\n(n=${p.known})`),
+      axisTick: { show: false },
+      axisLine: { lineStyle: { color: theme.grid } },
+      axisLabel: { color: theme.muted, interval: periods.length > 12 ? 'auto' : 0 },
+    },
+    yAxis: {
+      type: 'value',
+      min: 0,
+      axisLabel: { color: theme.muted, formatter: '{value}%' },
+      splitLine: { lineStyle: { color: theme.grid } },
+    },
+    series,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Letalidade por método de confirmação — barras horizontais ordenadas
+// ---------------------------------------------------------------------------
+
+export function lethalityTooltip(row: DiagnosticLethalityMethod): string {
+  const days =
+    row.median_days === null ? '—' : `${String(row.median_days).replace('.', ',')} dia(s)`;
+  return [
+    `<b>${row.method}</b>`,
+    `Letalidade: <b>${formatPercent(row.cfr)}</b> (${row.deaths} óbitos em ${row.resolved} casos com desfecho)`,
+    `Tempo mediano da notificação ao desfecho: ${days}`,
+    `Foram para a UTI: ${formatPercent(row.icu_pct)}`,
+  ].join('<br/>');
+}
+
+export function buildDiagnosticLethalityOption(
+  data: DiagnosticLethalityResponse,
+  theme: ChartTheme,
+): EChartsCoreOption {
+  // Ordem crescente: a maior letalidade fica no topo do gráfico.
+  const rows = [...data.methods].sort((a, b) => a.cfr - b.cfr);
+  const overall = data.overall.cfr;
+  const highest = Math.max(10, ...rows.map((row) => row.cfr));
+
+  return {
+    grid: { left: 170, right: 120, top: 8, bottom: 32 },
+    tooltip: {
+      trigger: 'item',
+      backgroundColor: theme.tooltipBg,
+      borderColor: theme.grid,
+      textStyle: { color: theme.tooltipText },
+      formatter: (raw: unknown) => {
+        const row = (raw as { data?: { row?: DiagnosticLethalityMethod } }).data?.row;
+        return row ? lethalityTooltip(row) : '';
+      },
+    },
+    xAxis: {
+      type: 'value',
+      min: 0,
+      max: Math.ceil(highest / 10) * 10,
+      axisLabel: { color: theme.muted, formatter: '{value}%' },
+      splitLine: { lineStyle: { color: theme.grid } },
+    },
+    yAxis: {
+      type: 'category',
+      data: rows.map((row) => row.method),
+      axisTick: { show: false },
+      axisLine: { lineStyle: { color: theme.grid } },
+      axisLabel: { color: theme.text },
+    },
+    series: [
+      {
+        type: 'bar',
+        barMaxWidth: 28,
+        data: rows.map((row) => ({
+          value: row.cfr,
+          row,
+          itemStyle: { color: overall !== null && row.cfr > overall ? RED : BLUE },
+        })),
+        label: {
+          show: true,
+          position: 'right',
+          color: theme.text,
+          formatter: (raw: unknown) => {
+            const row = (raw as { data: { row: DiagnosticLethalityMethod } }).data.row;
+            return `${formatPercent(row.cfr)} (n=${row.resolved})`;
+          },
+        },
+      },
+    ],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Positividade por tipo de amostra — barras horizontais
+// ---------------------------------------------------------------------------
+
+export function samplePositivityTooltip(row: SamplePositivityRow): string {
+  return [
+    `<b>${row.sample_type}</b>`,
+    `Positividade: <b>${formatPercent(row.positivity_pct)}</b>`,
+    `${row.positive} positivos em ${row.tested} casos com resultado`,
+  ].join('<br/>');
+}
+
+export function buildSamplePositivityOption(
+  data: SamplePositivityResponse,
+  theme: ChartTheme,
+): EChartsCoreOption {
+  // Ordem crescente de volume: o tipo mais testado fica no topo.
+  const rows = [...data.types].sort((a, b) => a.tested - b.tested);
+
+  return {
+    grid: { left: 180, right: 110, top: 8, bottom: 32 },
+    tooltip: {
+      trigger: 'item',
+      backgroundColor: theme.tooltipBg,
+      borderColor: theme.grid,
+      textStyle: { color: theme.tooltipText },
+      formatter: (raw: unknown) => {
+        const row = (raw as { data?: { row?: SamplePositivityRow } }).data?.row;
+        return row ? samplePositivityTooltip(row) : '';
+      },
+    },
+    xAxis: {
+      type: 'value',
+      min: 0,
+      max: 100,
+      axisLabel: { color: theme.muted, formatter: '{value}%' },
+      splitLine: { lineStyle: { color: theme.grid } },
+    },
+    yAxis: {
+      type: 'category',
+      data: rows.map((row) => row.sample_type),
+      axisTick: { show: false },
+      axisLine: { lineStyle: { color: theme.grid } },
+      axisLabel: { color: theme.text },
+    },
+    series: [
+      {
+        type: 'bar',
+        barMaxWidth: 28,
+        itemStyle: { color: BLUE },
+        data: rows.map((row) => ({ value: row.positivity_pct, row })),
+        label: {
+          show: true,
+          position: 'right',
+          color: theme.text,
+          formatter: (raw: unknown) => {
+            const row = (raw as { data: { row: SamplePositivityRow } }).data.row;
+            return `${formatPercent(row.positivity_pct)} (n=${row.tested})`;
+          },
+        },
+      },
+    ],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Antiviral — cura e óbito por rapidez do início do tratamento
+// ---------------------------------------------------------------------------
+
+export const ANTIVIRAL_BANDS = [
+  { key: 'cure', label: 'Cura', color: GREEN, text: '#FFFFFF' },
+  { key: 'death', label: 'Óbito', color: RED, text: '#FFFFFF' },
+] as const;
+
+export function antiviralWindowTooltip(window: AntiviralWindow): string {
+  const lines = ANTIVIRAL_BANDS.map((band) => {
+    const count = window[band.key];
+    return `${band.label}: <b>${count}</b> (${formatPercent(percentOf(count, window.total))})`;
+  });
+  return [`<b>${window.label}</b>: ${window.total} casos com desfecho`, ...lines].join('<br/>');
+}
+
+export function buildAntiviralWindowsOption(
+  data: AntiviralWindowsResponse,
+  theme: ChartTheme,
+): EChartsCoreOption {
+  const windows = data.windows.filter((window) => window.total > 0);
+  const option = buildShareBarsOption(
+    windows,
+    (window) => window.label,
+    ANTIVIRAL_BANDS,
+    antiviralWindowTooltip,
+    theme,
+  ) as { grid: object };
+  return { ...option, grid: { left: 48, right: 16, top: 44, bottom: 56 } };
+}
+
+// ---------------------------------------------------------------------------
+// Imagem e gravidade — % que foi para a UTI e % que morreu, por resultado
+// ---------------------------------------------------------------------------
+
+export function imagingTooltip(row: ImagingFinding): string {
+  const lethality =
+    row.death_pct === null
+      ? '—'
+      : `${formatPercent(row.death_pct)} (${row.deaths} óbitos em ${row.resolved} casos com desfecho)`;
+  return [
+    `<b>${row.finding}</b>: ${row.total} casos`,
+    `Foram para a UTI: <b>${formatPercent(row.icu_pct)}</b>`,
+    `Letalidade: <b>${lethality}</b>`,
+  ].join('<br/>');
+}
+
+export function buildImagingOption(rows: ImagingFinding[], theme: ChartTheme): EChartsCoreOption {
+  // Ordem crescente de letalidade: o achado mais letal fica no topo.
+  const sorted = [...rows].sort((a, b) => (a.death_pct ?? 0) - (b.death_pct ?? 0));
+  const series = (name: string, color: string, value: (row: ImagingFinding) => number) => ({
+    name,
+    type: 'bar',
+    barMaxWidth: 18,
+    itemStyle: { color },
+    data: sorted.map((row) => ({ value: value(row), row })),
+    label: {
+      show: true,
+      position: 'right',
+      color: theme.text,
+      formatter: (raw: unknown) => `${Math.round((raw as { value: number }).value)}%`,
+    },
+  });
+
+  return {
+    legend: {
+      top: 0,
+      data: ['Foram para a UTI', 'Morreram'],
+      textStyle: { color: theme.text },
+    },
+    grid: { left: 190, right: 48, top: 36, bottom: 28 },
+    tooltip: {
+      trigger: 'item',
+      backgroundColor: theme.tooltipBg,
+      borderColor: theme.grid,
+      textStyle: { color: theme.tooltipText },
+      formatter: (raw: unknown) => {
+        const row = (raw as { data?: { row?: ImagingFinding } }).data?.row;
+        return row ? imagingTooltip(row) : '';
+      },
+    },
+    xAxis: {
+      type: 'value',
+      min: 0,
+      max: 100,
+      axisLabel: { color: theme.muted, formatter: '{value}%' },
+      splitLine: { lineStyle: { color: theme.grid } },
+    },
+    yAxis: {
+      type: 'category',
+      data: sorted.map((row) => `${row.finding} (n=${row.total})`),
+      axisTick: { show: false },
+      axisLine: { lineStyle: { color: theme.grid } },
+      axisLabel: { color: theme.text },
+    },
+    series: [
+      series('Foram para a UTI', BLUE, (row) => row.icu_pct),
+      series('Morreram', RED, (row) => row.death_pct ?? 0),
     ],
   };
 }
