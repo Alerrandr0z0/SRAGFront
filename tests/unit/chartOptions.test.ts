@@ -1,15 +1,41 @@
 import { describe, expect, it } from 'vitest';
 import {
+  antiviralWindowTooltip,
+  buildAntiviralWindowsOption,
+  buildDiagnosticLethalityOption,
+  buildDiagnosticMethodsOption,
   buildHeatmapOption,
+  buildIcuAccessOption,
+  buildImagingOption,
+  buildNosocomialOption,
   buildOddsRatioOption,
+  buildSamplePositivityOption,
   buildSankeyOption,
+  diagnosticPeriodTooltip,
+  formatPercent,
+  formatPeriod,
   heatmapLabel,
+  icuPeriodTooltip,
+  imagingTooltip,
+  lethalityTooltip,
+  nosocomialTooltip,
   oddsRatioColor,
+  percentOf,
   prepareOddsRatio,
+  samplePositivityTooltip,
   sankeyTooltip,
 } from '../../src/components/Charts/Analytics/chartOptions';
 import { chartTheme } from '../../src/components/Charts/Analytics/chartTheme';
-import type { OddsRatioRow } from '../../src/service/srag/sragAnalytics';
+import type {
+  AntiviralWindowsResponse,
+  DiagnosticLethalityResponse,
+  DiagnosticMethodsResponse,
+  IcuAccessResponse,
+  ImagingFinding,
+  NosocomialRiskResponse,
+  OddsRatioRow,
+  SamplePositivityResponse,
+} from '../../src/service/srag/sragAnalytics';
 
 const theme = chartTheme(false);
 
@@ -140,5 +166,320 @@ describe('buildHeatmapOption', () => {
       yAxis: { axisLabel: { show: boolean } };
     };
     expect(option.yAxis.axisLabel.show).toBe(false);
+  });
+});
+
+describe('formatPeriod', () => {
+  it('formata ano, trimestre e mês', () => {
+    expect(formatPeriod('year', '2024')).toBe('2024');
+    expect(formatPeriod('quarter', '2024-Q1')).toBe('T1/2024');
+    expect(formatPeriod('month', '2024-03')).toBe('mar/24');
+    expect(formatPeriod('month', '2025-12')).toBe('dez/25');
+  });
+});
+
+describe('percentOf / formatPercent', () => {
+  it('calcula a fatia e formata em pt-BR', () => {
+    expect(percentOf(30, 60)).toBe(50);
+    expect(percentOf(5, 0)).toBe(0);
+    expect(formatPercent(77.5)).toBe('77,5%');
+    expect(formatPercent(0)).toBe('0,0%');
+  });
+});
+
+describe('buildIcuAccessOption', () => {
+  const stats = { d1_3: 20, d4_7: 6, d8_plus: 4, same_day: 30, total: 60 };
+  const data: IcuAccessResponse = {
+    granularity: 'year',
+    limit_days: 3,
+    min_cases: 50,
+    summary: {
+      ...stats,
+      median_wait_days: 2,
+      same_day_pct: 50,
+      over_limit: 10,
+      over_limit_pct: 16.7,
+      status: 'adequado',
+    },
+    periods: [{ ...stats, period: '2024', median_wait_days: 2 }],
+  };
+
+  type BarOption = {
+    xAxis: { data: string[] };
+    series: { name: string; data: number[] }[];
+  };
+
+  it('cria uma série por faixa de espera, na ordem do verde ao vermelho', () => {
+    const option = buildIcuAccessOption(data, theme) as BarOption;
+    expect(option.series.map((serie) => serie.name)).toEqual([
+      'Mesmo dia',
+      '1 a 3 dias (dentro do limite)',
+      '4 a 7 dias',
+      'Mais de 7 dias',
+    ]);
+  });
+
+  it('empilha percentuais que somam 100% por período', () => {
+    const option = buildIcuAccessOption(data, theme) as BarOption;
+    const values = option.series.map((serie) => serie.data[0]);
+    expect(values).toEqual([50, (20 / 60) * 100, 10, (4 / 60) * 100]);
+    expect(values.reduce((sum, value) => sum + value, 0)).toBeCloseTo(100);
+  });
+
+  it('mostra o n de cada período no rótulo do eixo', () => {
+    const option = buildIcuAccessOption(data, theme) as BarOption;
+    expect(option.xAxis.data).toEqual(['2024\n(n=60)']);
+  });
+
+  it('descreve contagens, percentuais e mediana no tooltip', () => {
+    const tooltip = icuPeriodTooltip(data.periods[0], 'year');
+    expect(tooltip).toContain('60 admissões na UTI');
+    expect(tooltip).toContain('Mesmo dia: <b>30</b> (50,0%)');
+    expect(tooltip).toContain('Mediana da espera (de quem esperou): 2 dia(s)');
+  });
+
+  it('indica quando ninguém esperou (sem mediana)', () => {
+    const tooltip = icuPeriodTooltip({ ...data.periods[0], median_wait_days: null }, 'year');
+    expect(tooltip).toContain('de quem esperou): —');
+  });
+});
+
+describe('buildDiagnosticMethodsOption', () => {
+  const counts = { total: 50, rt_pcr: 20, antigeno_outros: 10, clinico_epi: 15, clinico_outros: 5 };
+  const data: DiagnosticMethodsResponse = {
+    granularity: 'year',
+    min_cases: 50,
+    summary: { ...counts, laboratory_pct: 60, rt_pcr_pct: 40 },
+    periods: [{ ...counts, period: '2024' }],
+  };
+  type BarOption = { series: { name: string; data: number[] }[] };
+
+  it('empilha as quatro faixas de confirmação somando 100%', () => {
+    const option = buildDiagnosticMethodsOption(data, theme) as BarOption;
+    expect(option.series.map((serie) => serie.name)).toEqual([
+      'RT-PCR',
+      'Antígeno e outros laboratoriais',
+      'Clínico-epidemiológico',
+      'Clínico, imagem ou sem critério',
+    ]);
+    const values = option.series.map((serie) => serie.data[0]);
+    expect(values).toEqual([40, 20, 30, 10]);
+  });
+
+  it('descreve as contagens no tooltip', () => {
+    const tooltip = diagnosticPeriodTooltip(data.periods[0], 'year');
+    expect(tooltip).toContain('50 casos');
+    expect(tooltip).toContain('RT-PCR: <b>20</b> (40,0%)');
+  });
+});
+
+describe('buildNosocomialOption', () => {
+  const period = (key: string, pct: number, alert: boolean) => ({
+    period: key,
+    known: 20,
+    nosocomial: Math.round(pct / 5),
+    pct,
+    alert,
+  });
+  const base: NosocomialRiskResponse = {
+    granularity: 'month',
+    min_cases: 20,
+    mean_pct: 8,
+    alert_limit_pct: 40,
+    summary: {
+      known: 40,
+      nosocomial: 4,
+      nosocomial_pct: 10,
+      lethality: {
+        nosocomial: { resolved: 4, deaths: 2, pct: 50 },
+        community: { resolved: 36, deaths: 4, pct: 11.1 },
+      },
+    },
+    periods: [period('2024-01', 5, false), period('2024-02', 60, true)],
+  };
+  type Option = {
+    series: { name: string; data: (number | { value: number; itemStyle: { color: string } })[] }[];
+  };
+
+  it('pinta de vermelho só as barras acima do limite de alerta', () => {
+    const option = buildNosocomialOption(base, theme) as Option;
+    const bars = option.series[0].data as { value: number; itemStyle: { color: string } }[];
+    expect(bars.map((bar) => bar.itemStyle.color)).toEqual(['#3C50E0', '#DC2626']);
+  });
+
+  it('desenha as linhas de média e de limite de alerta', () => {
+    const option = buildNosocomialOption(base, theme) as Option;
+    expect(option.series.map((serie) => serie.name)).toEqual([
+      'Infecção hospitalar',
+      'Média dos períodos',
+      'Limite de alerta',
+    ]);
+    expect(option.series[2].data).toEqual([40, 40]);
+  });
+
+  it('omite o limite de alerta quando ele não existe', () => {
+    const option = buildNosocomialOption({ ...base, alert_limit_pct: null }, theme) as Option;
+    expect(option.series.map((serie) => serie.name)).not.toContain('Limite de alerta');
+  });
+
+  it('avisa no tooltip quando o período passou do limite', () => {
+    expect(nosocomialTooltip(base.periods[1], 'month')).toContain('Acima do limite de alerta');
+    expect(nosocomialTooltip(base.periods[0], 'month')).not.toContain('Acima do limite');
+  });
+});
+
+describe('buildDiagnosticLethalityOption', () => {
+  const method = (name: string, cfr: number) => ({
+    method: name,
+    cases: 30,
+    resolved: 20,
+    deaths: Math.round(cfr / 5),
+    cfr,
+    median_days: 9,
+    icu_pct: 40,
+  });
+  const data: DiagnosticLethalityResponse = {
+    min_resolved: 10,
+    overall: { cases: 60, resolved: 40, deaths: 12, cfr: 30 },
+    methods: [method('A', 50), method('B', 10), method('C', 30)],
+    hidden: [],
+  };
+  type Option = {
+    yAxis: { data: string[] };
+    series: { data: { value: number; itemStyle: { color: string } }[] }[];
+  };
+
+  it('ordena do menos letal ao mais letal, deixando o mais letal no topo', () => {
+    const option = buildDiagnosticLethalityOption(data, theme) as Option;
+    expect(option.yAxis.data).toEqual(['B', 'C', 'A']);
+  });
+
+  it('pinta de vermelho só o que passa da média geral', () => {
+    const option = buildDiagnosticLethalityOption(data, theme) as Option;
+    expect(option.series[0].data.map((bar) => bar.itemStyle.color)).toEqual([
+      '#3C50E0',
+      '#3C50E0', // 30% = média: não passa dela
+      '#DC2626',
+    ]);
+  });
+
+  it('descreve letalidade, tempo e UTI no tooltip', () => {
+    const tooltip = lethalityTooltip(data.methods[0]);
+    expect(tooltip).toContain('Letalidade: <b>50,0%</b> (10 óbitos em 20 casos com desfecho)');
+    expect(tooltip).toContain('9 dia(s)');
+    expect(tooltip).toContain('Foram para a UTI: 40,0%');
+  });
+
+  it('indica quando não há tempo mediano', () => {
+    expect(lethalityTooltip({ ...data.methods[0], median_days: null })).toContain('desfecho: —');
+  });
+});
+
+describe('buildSamplePositivityOption', () => {
+  const data: SamplePositivityResponse = {
+    min_tested: 10,
+    overall: { tested: 32, positive: 16, pct: 50 },
+    types: [
+      { sample_type: 'Outra', tested: 12, positive: 1, positivity_pct: 8.3 },
+      { sample_type: 'Secreção naso/orofaringe', tested: 20, positive: 15, positivity_pct: 75 },
+    ],
+    hidden: [],
+  };
+  type Option = {
+    yAxis: { data: string[] };
+    series: { data: { value: number; row: { tested: number } }[] }[];
+  };
+
+  it('deixa o tipo mais testado no topo (ordem crescente de volume)', () => {
+    const option = buildSamplePositivityOption(data, theme) as Option;
+    expect(option.yAxis.data).toEqual(['Outra', 'Secreção naso/orofaringe']);
+    expect(option.series[0].data.map((bar) => bar.value)).toEqual([8.3, 75]);
+  });
+
+  it('descreve positivos e casos com resultado no tooltip', () => {
+    const tooltip = samplePositivityTooltip(data.types[1]);
+    expect(tooltip).toContain('Positividade: <b>75,0%</b>');
+    expect(tooltip).toContain('15 positivos em 20 casos com resultado');
+  });
+});
+
+describe('buildAntiviralWindowsOption', () => {
+  const window = (key: string, label: string, cure: number, death: number) => ({
+    key,
+    label,
+    total: cure + death,
+    cure,
+    death,
+    cure_pct: cure + death ? (cure / (cure + death)) * 100 : null,
+    death_pct: cure + death ? (death / (cure + death)) * 100 : null,
+  });
+  const data: AntiviralWindowsResponse = {
+    treated: 12,
+    with_dates: 12,
+    median_days: 2,
+    within_2d_pct: 50,
+    cure_within_2d_pct: 87.5,
+    cure_without_antiviral_pct: 70,
+    death_after_5d_pct: 50,
+    windows: [
+      window('le1', 'Até 1 dia', 4, 0),
+      window('d2', '2 dias', 3, 1),
+      window('d3_5', '3 a 5 dias', 0, 0),
+      window('none', 'Sem antiviral', 7, 3),
+    ],
+  };
+  type Option = { xAxis: { data: string[] }; series: { name: string; data: number[] }[] };
+
+  it('descarta janelas sem casos e empilha cura e óbito somando 100%', () => {
+    const option = buildAntiviralWindowsOption(data, theme) as Option;
+    expect(option.xAxis.data).toEqual([
+      'Até 1 dia\n(n=4)',
+      '2 dias\n(n=4)',
+      'Sem antiviral\n(n=10)',
+    ]);
+    expect(option.series.map((serie) => serie.name)).toEqual(['Cura', 'Óbito']);
+    expect(option.series[0].data).toEqual([100, 75, 70]);
+    expect(option.series[1].data).toEqual([0, 25, 30]);
+  });
+
+  it('descreve a janela no tooltip', () => {
+    const tooltip = antiviralWindowTooltip(data.windows[1]);
+    expect(tooltip).toContain('2 dias</b>: 4 casos com desfecho');
+    expect(tooltip).toContain('Cura: <b>3</b> (75,0%)');
+  });
+});
+
+describe('buildImagingOption', () => {
+  const finding = (name: string, deathPct: number | null, icuPct: number): ImagingFinding => ({
+    finding: name,
+    total: 20,
+    icu_pct: icuPct,
+    resolved: 18,
+    deaths: 4,
+    death_pct: deathPct,
+  });
+  const rows = [finding('A', 50, 80), finding('B', 10, 20), finding('C', null, 40)];
+  type Option = {
+    yAxis: { data: string[] };
+    series: { name: string; data: { value: number }[] }[];
+  };
+
+  it('ordena do menos letal ao mais letal, deixando o mais letal no topo', () => {
+    const option = buildImagingOption(rows, theme) as Option;
+    expect(option.yAxis.data).toEqual(['C (n=20)', 'B (n=20)', 'A (n=20)']);
+  });
+
+  it('cria uma série de UTI e uma de letalidade, tratando letalidade ausente como 0', () => {
+    const option = buildImagingOption(rows, theme) as Option;
+    expect(option.series.map((serie) => serie.name)).toEqual(['Foram para a UTI', 'Morreram']);
+    expect(option.series[0].data.map((bar) => bar.value)).toEqual([40, 20, 80]);
+    expect(option.series[1].data.map((bar) => bar.value)).toEqual([0, 10, 50]);
+  });
+
+  it('descreve UTI e letalidade no tooltip', () => {
+    const tooltip = imagingTooltip(rows[0]);
+    expect(tooltip).toContain('Foram para a UTI: <b>80,0%</b>');
+    expect(tooltip).toContain('4 óbitos em 18 casos com desfecho');
+    expect(imagingTooltip(rows[2])).toContain('Letalidade: <b>—</b>');
   });
 });

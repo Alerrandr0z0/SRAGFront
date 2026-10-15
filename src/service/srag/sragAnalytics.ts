@@ -45,6 +45,199 @@ export interface SymptomsSignatureResponse {
   matrices: Partial<Record<SignatureAgent, SignatureCell[][]>>;
 }
 
+// --- Acesso à UTI (tempo entre a internação e a entrada na UTI) ---
+
+export type IcuGranularity = 'year' | 'quarter' | 'month';
+export type IcuStatus = 'adequado' | 'atencao' | 'critico';
+
+export interface IcuWaitStats {
+  total: number;
+  same_day: number;
+  d1_3: number;
+  d4_7: number;
+  d8_plus: number;
+  /** Mediana da espera entre quem esperou pelo menos 1 dia (null se ninguém esperou). */
+  median_wait_days: number | null;
+}
+
+export interface IcuAccessPeriod extends IcuWaitStats {
+  /** Chave do período: "2024", "2024-Q1" ou "2024-03". */
+  period: string;
+}
+
+export interface IcuAccessSummary extends IcuWaitStats {
+  same_day_pct: number;
+  over_limit: number;
+  over_limit_pct: number;
+  status: IcuStatus | null;
+}
+
+export interface IcuAccessResponse {
+  granularity: IcuGranularity;
+  limit_days: number;
+  min_cases: number;
+  summary: IcuAccessSummary;
+  periods: IcuAccessPeriod[];
+}
+
+// --- Confirmação diagnóstica (laboratório x clínico) ---
+
+export interface DiagnosticMethodCounts {
+  total: number;
+  rt_pcr: number;
+  antigeno_outros: number;
+  clinico_epi: number;
+  clinico_outros: number;
+}
+
+export interface DiagnosticMethodsPeriod extends DiagnosticMethodCounts {
+  period: string;
+}
+
+export interface DiagnosticMethodsResponse {
+  granularity: IcuGranularity;
+  min_cases: number;
+  summary: DiagnosticMethodCounts & { laboratory_pct: number; rt_pcr_pct: number };
+  periods: DiagnosticMethodsPeriod[];
+}
+
+// --- Infecção hospitalar (nosocomial) ---
+
+export interface OriginLethality {
+  resolved: number;
+  deaths: number;
+  pct: number | null;
+}
+
+export interface NosocomialPeriod {
+  period: string;
+  known: number;
+  nosocomial: number;
+  pct: number;
+  /** Acima do limite de alerta (média + 3 desvios-padrão entre os períodos). */
+  alert: boolean;
+}
+
+export interface NosocomialRiskResponse {
+  granularity: IcuGranularity;
+  min_cases: number;
+  mean_pct: number | null;
+  /** Só existe com 12 ou mais períodos. */
+  alert_limit_pct: number | null;
+  summary: {
+    known: number;
+    nosocomial: number;
+    nosocomial_pct: number;
+    lethality: { nosocomial: OriginLethality; community: OriginLethality };
+  };
+  periods: NosocomialPeriod[];
+}
+
+// --- Letalidade por método de confirmação ---
+
+export interface DiagnosticLethalityMethod {
+  method: string;
+  cases: number;
+  resolved: number;
+  deaths: number;
+  cfr: number;
+  median_days: number | null;
+  icu_pct: number;
+}
+
+export interface DiagnosticLethalityResponse {
+  min_resolved: number;
+  overall: { cases: number; resolved: number; deaths: number; cfr: number | null };
+  methods: DiagnosticLethalityMethod[];
+  hidden: string[];
+}
+
+// --- Laboratório: qualidade do diagnóstico ---
+
+export interface LabIndicator {
+  count: number;
+  pct: number;
+  target_pct: number;
+}
+
+export interface LabWaitStats {
+  count: number;
+  mean: number | null;
+  median: number | null;
+  p90: number | null;
+  p95: number | null;
+}
+
+export interface LabPerformanceResponse {
+  total: number;
+  result: LabIndicator;
+  collection: LabIndicator;
+  rt_pcr_latency: LabWaitStats & { within_target_pct: number | null; target_days: number };
+  turnaround: LabWaitStats & { target_days: number };
+  positivity: { tested: number; positive: number; pct: number | null };
+}
+
+// --- Positividade por tipo de amostra ---
+
+export interface SamplePositivityRow {
+  sample_type: string;
+  tested: number;
+  positive: number;
+  positivity_pct: number;
+}
+
+export interface SamplePositivityResponse {
+  min_tested: number;
+  overall: { tested: number; positive: number; pct: number | null };
+  types: SamplePositivityRow[];
+  hidden: string[];
+}
+
+// --- Antiviral: rapidez do tratamento e desfecho ---
+
+export interface AntiviralWindow {
+  key: string;
+  label: string;
+  total: number;
+  cure: number;
+  death: number;
+  cure_pct: number | null;
+  death_pct: number | null;
+}
+
+export interface AntiviralWindowsResponse {
+  treated: number;
+  with_dates: number;
+  median_days: number | null;
+  within_2d_pct: number | null;
+  cure_within_2d_pct: number | null;
+  cure_without_antiviral_pct: number | null;
+  death_after_5d_pct: number | null;
+  windows: AntiviralWindow[];
+}
+
+// --- Imagem e gravidade ---
+
+export interface ImagingFinding {
+  finding: string;
+  total: number;
+  icu_pct: number;
+  resolved: number;
+  deaths: number;
+  death_pct: number | null;
+}
+
+export interface ImagingGroup {
+  rows: ImagingFinding[];
+  hidden: string[];
+}
+
+export interface ImagingSeverityResponse {
+  min_cases: number;
+  xray: ImagingGroup;
+  ct: ImagingGroup;
+}
+
 export function buildAnalyticsUrl(
   path: string,
   filters: SragFilters,
@@ -72,5 +265,62 @@ export function getSymptomsSignature(
 ): Promise<SymptomsSignatureResponse> {
   return getApiData<SymptomsSignatureResponse>(
     buildAnalyticsUrl('/analytics/symptoms_signature', filters, { profile }),
+  );
+}
+
+export function getIcuAccess(
+  filters: SragFilters,
+  granularity: IcuGranularity,
+): Promise<IcuAccessResponse> {
+  return getApiData<IcuAccessResponse>(
+    buildAnalyticsUrl('/analytics/icu_access', filters, { granularity }),
+  );
+}
+
+export function getDiagnosticMethods(
+  filters: SragFilters,
+  granularity: IcuGranularity,
+): Promise<DiagnosticMethodsResponse> {
+  return getApiData<DiagnosticMethodsResponse>(
+    buildAnalyticsUrl('/analytics/diagnostic_methods', filters, { granularity }),
+  );
+}
+
+export function getNosocomialRisk(
+  filters: SragFilters,
+  granularity: IcuGranularity,
+): Promise<NosocomialRiskResponse> {
+  return getApiData<NosocomialRiskResponse>(
+    buildAnalyticsUrl('/analytics/nosocomial_risk', filters, { granularity }),
+  );
+}
+
+export function getDiagnosticLethality(filters: SragFilters): Promise<DiagnosticLethalityResponse> {
+  return getApiData<DiagnosticLethalityResponse>(
+    buildAnalyticsUrl('/analytics/diagnostic_lethality', filters),
+  );
+}
+
+export function getLabPerformance(filters: SragFilters): Promise<LabPerformanceResponse> {
+  return getApiData<LabPerformanceResponse>(
+    buildAnalyticsUrl('/analytics/lab_performance', filters),
+  );
+}
+
+export function getSamplePositivity(filters: SragFilters): Promise<SamplePositivityResponse> {
+  return getApiData<SamplePositivityResponse>(
+    buildAnalyticsUrl('/analytics/sample_positivity', filters),
+  );
+}
+
+export function getAntiviralWindows(filters: SragFilters): Promise<AntiviralWindowsResponse> {
+  return getApiData<AntiviralWindowsResponse>(
+    buildAnalyticsUrl('/analytics/antiviral_windows', filters),
+  );
+}
+
+export function getImagingSeverity(filters: SragFilters): Promise<ImagingSeverityResponse> {
+  return getApiData<ImagingSeverityResponse>(
+    buildAnalyticsUrl('/analytics/imaging_severity', filters),
   );
 }
