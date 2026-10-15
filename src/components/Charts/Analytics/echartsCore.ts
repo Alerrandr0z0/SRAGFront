@@ -5,6 +5,7 @@ import { BarChart, CustomChart, HeatmapChart, LineChart, SankeyChart } from 'ech
 import {
   GridComponent,
   LegendComponent,
+  MarkLineComponent,
   TooltipComponent,
   VisualMapComponent,
 } from 'echarts/components';
@@ -19,6 +20,7 @@ echarts.use([
   CustomChart,
   GridComponent,
   LegendComponent,
+  MarkLineComponent,
   TooltipComponent,
   VisualMapComponent,
   CanvasRenderer,

@@ -53,4 +53,10 @@ describe('buildAnalyticsUrl', () => {
       '/analytics/imaging_severity',
     );
   });
+
+  it('monta a URL do atraso de notificação com os filtros do dashboard', () => {
+    expect(
+      buildAnalyticsUrl('/analytics/notification_delay', { year: '2025', bairro: 'ALTO' }),
+    ).toBe('/analytics/notification_delay?years=2025&bairros=ALTO');
+  });
 });

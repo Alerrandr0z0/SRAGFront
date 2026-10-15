@@ -12,6 +12,8 @@ import type {
   ImagingFinding,
   NosocomialPeriod,
   NosocomialRiskResponse,
+  NotificationDelayBairro,
+  NotificationDelayStatus,
   OddsRatioRow,
   SamplePositivityResponse,
   SamplePositivityRow,
@@ -818,6 +820,95 @@ export function buildImagingOption(rows: ImagingFinding[], theme: ChartTheme): E
     series: [
       series('Foram para a UTI', BLUE, (row) => row.icu_pct),
       series('Morreram', RED, (row) => row.death_pct ?? 0),
+    ],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Atraso de notificação por bairro — barras horizontais com limite aceitável
+// ---------------------------------------------------------------------------
+
+const DELAY_COLORS: Record<NotificationDelayStatus, string> = {
+  adequado: GREEN,
+  atencao: AMBER,
+  critico: RED,
+};
+
+const formatNumber = (value: number) => String(value).replace('.', ',');
+
+export function notificationDelayTooltip(row: NotificationDelayBairro, limitDays: number): string {
+  return [
+    `<b>${row.bairro}</b>: ${row.total} casos`,
+    `Mediana: <b>${formatNumber(row.median_days)} dias</b> (média ${formatNumber(row.mean_days)})`,
+    `Notificados em até ${limitDays} dias: <b>${formatPercent(row.within_limit_pct)}</b>`,
+  ].join('<br/>');
+}
+
+export function buildNotificationDelayOption(
+  rows: NotificationDelayBairro[],
+  limitDays: number,
+  theme: ChartTheme,
+): EChartsCoreOption {
+  const longest = Math.max(0, ...rows.map((row) => row.median_days));
+
+  return {
+    grid: { left: 190, right: 120, top: 32, bottom: 32 },
+    tooltip: {
+      trigger: 'item',
+      backgroundColor: theme.tooltipBg,
+      borderColor: theme.grid,
+      textStyle: { color: theme.tooltipText },
+      formatter: (raw: unknown) => {
+        const row = (raw as { data?: { row?: NotificationDelayBairro } }).data?.row;
+        return row ? notificationDelayTooltip(row, limitDays) : '';
+      },
+    },
+    xAxis: {
+      type: 'value',
+      min: 0,
+      max: Math.max(limitDays + 3, Math.ceil(longest) + 3),
+      axisLabel: { color: theme.muted, formatter: '{value} d' },
+      splitLine: { lineStyle: { color: theme.grid } },
+    },
+    // inverse: a primeira linha (maior atraso) fica no topo.
+    yAxis: {
+      type: 'category',
+      inverse: true,
+      data: rows.map((row) => row.bairro),
+      axisTick: { show: false },
+      axisLine: { lineStyle: { color: theme.grid } },
+      axisLabel: { color: theme.text },
+    },
+    series: [
+      {
+        type: 'bar',
+        barMaxWidth: 22,
+        data: rows.map((row) => ({
+          value: row.median_days,
+          row,
+          itemStyle: { color: DELAY_COLORS[row.status] ?? SLATE },
+        })),
+        label: {
+          show: true,
+          position: 'right',
+          color: theme.text,
+          formatter: (raw: unknown) => {
+            const row = (raw as { data: { row: NotificationDelayBairro } }).data.row;
+            return `${formatNumber(row.median_days)} dias (n=${row.total})`;
+          },
+        },
+        markLine: {
+          silent: true,
+          symbol: 'none',
+          lineStyle: { type: 'dashed', width: 2, color: theme.muted },
+          label: {
+            formatter: `Limite aceitável: ${limitDays} dias`,
+            position: 'end',
+            color: theme.muted,
+          },
+          data: [{ xAxis: limitDays }],
+        },
+      },
     ],
   };
 }
