@@ -238,6 +238,36 @@ export interface ImagingSeverityResponse {
   ct: ImagingGroup;
 }
 
+// --- Território: atraso de notificação por bairro ---
+
+export type NotificationDelayStatus = 'adequado' | 'atencao' | 'critico';
+
+export interface NotificationDelayBairro {
+  bairro: string;
+  total: number;
+  median_days: number;
+  mean_days: number;
+  within_limit_pct: number;
+  status: NotificationDelayStatus;
+}
+
+export interface NotificationDelayResponse {
+  limit_days: number;
+  warn_days: number;
+  critical_days: number;
+  min_cases: number;
+  overall: {
+    total: number;
+    median_days: number | null;
+    within_limit_pct: number | null;
+    status: NotificationDelayStatus | null;
+  };
+  /** Da maior para a menor mediana de atraso. */
+  bairros: NotificationDelayBairro[];
+  /** Bairros com menos casos que o mínimo, fora do ranking. */
+  hidden_count: number;
+}
+
 export function buildAnalyticsUrl(
   path: string,
   filters: SragFilters,
@@ -322,5 +352,11 @@ export function getAntiviralWindows(filters: SragFilters): Promise<AntiviralWind
 export function getImagingSeverity(filters: SragFilters): Promise<ImagingSeverityResponse> {
   return getApiData<ImagingSeverityResponse>(
     buildAnalyticsUrl('/analytics/imaging_severity', filters),
+  );
+}
+
+export function getNotificationDelay(filters: SragFilters): Promise<NotificationDelayResponse> {
+  return getApiData<NotificationDelayResponse>(
+    buildAnalyticsUrl('/analytics/notification_delay', filters),
   );
 }

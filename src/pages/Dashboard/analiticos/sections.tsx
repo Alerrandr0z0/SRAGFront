@@ -7,6 +7,7 @@ import IcuAccessCard from './IcuAccessCard';
 import ImagingCard from './ImagingCard';
 import LabPerformanceCard from './LabPerformanceCard';
 import NosocomialCard from './NosocomialCard';
+import NotificationDelayCard from './NotificationDelayCard';
 import OddsRatioCard from './OddsRatioCard';
 import SamplePositivityCard from './SamplePositivityCard';
 import type { TabSection } from './SectionTabs';
@@ -24,6 +25,12 @@ export const SECTIONS = [
     label: 'Laboratório',
     description:
       'Qualidade do diagnóstico, positividade das amostras, rapidez do antiviral e gravidade pela imagem.',
+  },
+  {
+    id: 'territorio',
+    label: 'Território',
+    description:
+      'Em quais bairros as notificações demoram mais. O mapa e a tabela de bairros ficam na página Sociodemográfica.',
   },
   {
     id: 'clinico',
@@ -56,6 +63,8 @@ export function SectionContent({ id, filters }: { id: SectionId; filters: SragFi
           <ImagingCard filters={filters} />
         </>
       );
+    case 'territorio':
+      return <NotificationDelayCard filters={filters} />;
     case 'clinico':
       return (
         <>

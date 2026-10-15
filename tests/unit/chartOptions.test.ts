@@ -8,6 +8,7 @@ import {
   buildIcuAccessOption,
   buildImagingOption,
   buildNosocomialOption,
+  buildNotificationDelayOption,
   buildOddsRatioOption,
   buildSamplePositivityOption,
   buildSankeyOption,
@@ -19,6 +20,7 @@ import {
   imagingTooltip,
   lethalityTooltip,
   nosocomialTooltip,
+  notificationDelayTooltip,
   oddsRatioColor,
   percentOf,
   prepareOddsRatio,
@@ -33,6 +35,7 @@ import type {
   IcuAccessResponse,
   ImagingFinding,
   NosocomialRiskResponse,
+  NotificationDelayBairro,
   OddsRatioRow,
   SamplePositivityResponse,
 } from '../../src/service/srag/sragAnalytics';
@@ -481,5 +484,75 @@ describe('buildImagingOption', () => {
     expect(tooltip).toContain('Foram para a UTI: <b>80,0%</b>');
     expect(tooltip).toContain('4 óbitos em 18 casos com desfecho');
     expect(imagingTooltip(rows[2])).toContain('Letalidade: <b>—</b>');
+  });
+});
+
+describe('buildNotificationDelayOption', () => {
+  const bairro = (
+    name: string,
+    median: number,
+    status: NotificationDelayBairro['status'],
+  ): NotificationDelayBairro => ({
+    bairro: name,
+    total: 12,
+    median_days: median,
+    mean_days: median + 0.4,
+    within_limit_pct: 40,
+    status,
+  });
+  const rows = [
+    bairro('CENTRO', 13, 'critico'),
+    bairro('ALTO', 8.5, 'atencao'),
+    bairro('SUL', 3, 'adequado'),
+  ];
+  type Option = {
+    xAxis: { max: number };
+    yAxis: { inverse: boolean; data: string[] };
+    series: {
+      data: { value: number; itemStyle: { color: string } }[];
+      markLine: { data: { xAxis: number }[]; label: { formatter: string } };
+    }[];
+  };
+
+  it('mantém a ordem recebida e deixa o maior atraso no topo', () => {
+    const option = buildNotificationDelayOption(rows, 7, theme) as Option;
+    expect(option.yAxis.data).toEqual(['CENTRO', 'ALTO', 'SUL']);
+    expect(option.yAxis.inverse).toBe(true);
+  });
+
+  it('pinta cada barra pelo status do bairro', () => {
+    const option = buildNotificationDelayOption(rows, 7, theme) as Option;
+    expect(option.series[0].data.map((bar) => bar.itemStyle.color)).toEqual([
+      '#DC2626',
+      '#F59E0B',
+      '#10B981',
+    ]);
+  });
+
+  it('marca o limite aceitável com uma linha tracejada', () => {
+    const option = buildNotificationDelayOption(rows, 7, theme) as Option;
+    const [line] = option.series[0].markLine.data;
+    expect(line.xAxis).toBe(7);
+    expect(option.series[0].markLine.label.formatter).toBe('Limite aceitável: 7 dias');
+  });
+
+  it('deixa folga no eixo para o maior atraso e para o limite', () => {
+    expect((buildNotificationDelayOption(rows, 7, theme) as Option).xAxis.max).toBe(16);
+    expect(
+      (buildNotificationDelayOption([bairro('X', 1, 'adequado')], 7, theme) as Option).xAxis.max,
+    ).toBe(10);
+  });
+
+  it('não quebra sem nenhum bairro', () => {
+    const option = buildNotificationDelayOption([], 7, theme) as Option;
+    expect(option.yAxis.data).toEqual([]);
+    expect(option.xAxis.max).toBe(10);
+  });
+
+  it('descreve mediana, média e % no prazo no tooltip', () => {
+    const tooltip = notificationDelayTooltip(rows[1], 7);
+    expect(tooltip).toContain('<b>ALTO</b>: 12 casos');
+    expect(tooltip).toContain('Mediana: <b>8,5 dias</b> (média 8,9)');
+    expect(tooltip).toContain('Notificados em até 7 dias: <b>40,0%</b>');
   });
 });
