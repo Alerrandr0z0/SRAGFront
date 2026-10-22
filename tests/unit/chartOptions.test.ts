@@ -7,9 +7,11 @@ import {
   buildHeatmapOption,
   buildIcuAccessOption,
   buildImagingOption,
+  buildMaternalOutcomesOption,
   buildNosocomialOption,
   buildNotificationDelayOption,
   buildOddsRatioOption,
+  buildRankedBarsOption,
   buildSamplePositivityOption,
   buildSankeyOption,
   diagnosticPeriodTooltip,
@@ -19,11 +21,14 @@ import {
   icuPeriodTooltip,
   imagingTooltip,
   lethalityTooltip,
+  maternalTooltip,
   nosocomialTooltip,
   notificationDelayTooltip,
   oddsRatioColor,
   percentOf,
   prepareOddsRatio,
+  rankedBarTooltip,
+  rankedBarsRows,
   samplePositivityTooltip,
   sankeyTooltip,
 } from '../../src/components/Charts/Analytics/chartOptions';
@@ -34,6 +39,7 @@ import type {
   DiagnosticMethodsResponse,
   IcuAccessResponse,
   ImagingFinding,
+  MaternalOutcomesResponse,
   NosocomialRiskResponse,
   NotificationDelayBairro,
   OddsRatioRow,
@@ -554,5 +560,84 @@ describe('buildNotificationDelayOption', () => {
     expect(tooltip).toContain('<b>ALTO</b>: 12 casos');
     expect(tooltip).toContain('Mediana: <b>8,5 dias</b> (média 8,9)');
     expect(tooltip).toContain('Notificados em até 7 dias: <b>40,0%</b>');
+  });
+});
+
+describe('buildMaternalOutcomesOption', () => {
+  const group = (name: string, cure: number, icu: number, death: number, other = 0) => ({
+    group: name,
+    total: cure + icu + death + other,
+    cure,
+    icu,
+    death,
+    other,
+  });
+  const data: MaternalOutcomesResponse = {
+    gestantes_total: 14,
+    puerperas_total: 2,
+    min_cases: 10,
+    groups: [
+      group('Gest. 1º tri', 8, 1, 1),
+      group('Gest. 3º tri', 3, 0, 1),
+      group('Puérpera', 1, 1, 0),
+    ],
+  };
+  type Option = { xAxis: { data: string[] }; series: { name: string; data: number[] }[] };
+
+  it('empilha os quatro desfechos somando 100% e marca grupos pequenos com *', () => {
+    const option = buildMaternalOutcomesOption(data, theme) as Option;
+    expect(option.xAxis.data).toEqual([
+      'Gest. 1º tri\n(n=10)',
+      'Gest. 3º tri *\n(n=4)',
+      'Puérpera *\n(n=2)',
+    ]);
+    expect(option.series.map((serie) => serie.name)).toEqual([
+      'Cura sem UTI',
+      'UTI e sobreviveu',
+      'Óbito',
+      'Outro ou em aberto',
+    ]);
+    expect(option.series[0].data).toEqual([80, 75, 50]);
+    expect(option.series[2].data).toEqual([10, 25, 0]);
+  });
+
+  it('avisa no tooltip quando o grupo tem poucos casos', () => {
+    expect(maternalTooltip(data.groups[1], 10)).toContain('Poucos casos');
+    expect(maternalTooltip(data.groups[0], 10)).not.toContain('Poucos casos');
+    expect(maternalTooltip(data.groups[0], 10)).toContain('Cura sem UTI: <b>8</b> (80,0%)');
+  });
+});
+
+describe('buildRankedBarsOption', () => {
+  const items = [
+    { label: 'B', count: 5 },
+    { label: 'A', count: 20 },
+    { label: 'C', count: 0 },
+  ];
+  type Option = {
+    yAxis: { data: string[]; inverse: boolean };
+    series: { data: { value: number }[] }[];
+  };
+
+  it('ordena do maior ao menor deixando o maior no topo', () => {
+    const option = buildRankedBarsOption(items, theme, { base: 25 }) as Option;
+    expect(option.yAxis.data).toEqual(['A', 'B', 'C']);
+    expect(option.yAxis.inverse).toBe(true);
+    expect(option.series[0].data.map((d) => d.value)).toEqual([20, 5, 0]);
+  });
+
+  it('mantém a ordem recebida quando são etapas', () => {
+    const option = buildRankedBarsOption(items, theme, { base: 25, order: 'keep' }) as Option;
+    expect(option.yAxis.data).toEqual(['B', 'A', 'C']);
+  });
+
+  it('não altera a lista original', () => {
+    rankedBarsRows(items, 'desc');
+    expect(items.map((item) => item.label)).toEqual(['B', 'A', 'C']);
+  });
+
+  it('calcula o percentual sobre a base informada', () => {
+    expect(rankedBarTooltip(items[1], 25)).toContain('20 casos (80,0%)');
+    expect(rankedBarTooltip(items[1], 0)).toContain('(0,0%)');
   });
 });

@@ -360,3 +360,66 @@ export function getNotificationDelay(filters: SragFilters): Promise<Notification
     buildAnalyticsUrl('/analytics/notification_delay', filters),
   );
 }
+
+// --- Cidadão ---
+
+export interface LabeledCount {
+  label: string;
+  count: number;
+}
+
+export interface MaternalGroup {
+  group: string;
+  total: number;
+  cure: number;
+  icu: number;
+  death: number;
+  other: number;
+}
+
+export interface MaternalOutcomesResponse {
+  gestantes_total: number;
+  puerperas_total: number;
+  /** Abaixo disso o percentual do grupo é anedótico. */
+  min_cases: number;
+  groups: MaternalGroup[];
+}
+
+export interface OccupationProfileResponse {
+  total: number;
+  informed: number;
+  items: LabeledCount[];
+}
+
+export interface AnimalContactResponse {
+  total: number;
+  ignored: number;
+  items: LabeledCount[];
+}
+
+export interface CovidImmunizationResponse {
+  manufacturers: LabeledCount[];
+  dose_stages: LabeledCount[];
+}
+
+export function getMaternalOutcomes(filters: SragFilters): Promise<MaternalOutcomesResponse> {
+  return getApiData<MaternalOutcomesResponse>(
+    buildAnalyticsUrl('/analytics/maternal_outcomes', filters),
+  );
+}
+
+export function getOccupationProfile(filters: SragFilters): Promise<OccupationProfileResponse> {
+  return getApiData<OccupationProfileResponse>(
+    buildAnalyticsUrl('/analytics/occupation_profile', filters),
+  );
+}
+
+export function getAnimalContact(filters: SragFilters): Promise<AnimalContactResponse> {
+  return getApiData<AnimalContactResponse>(buildAnalyticsUrl('/analytics/animal_contact', filters));
+}
+
+export function getCovidImmunization(filters: SragFilters): Promise<CovidImmunizationResponse> {
+  return getApiData<CovidImmunizationResponse>(
+    buildAnalyticsUrl('/analytics/covid_immunization', filters),
+  );
+}

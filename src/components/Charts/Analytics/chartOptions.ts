@@ -10,6 +10,9 @@ import type {
   IcuAccessResponse,
   IcuGranularity,
   ImagingFinding,
+  LabeledCount,
+  MaternalGroup,
+  MaternalOutcomesResponse,
   NosocomialPeriod,
   NosocomialRiskResponse,
   NotificationDelayBairro,
@@ -907,6 +910,118 @@ export function buildNotificationDelayOption(
             color: theme.muted,
           },
           data: [{ xAxis: limitDays }],
+        },
+      },
+    ],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Desfecho por grupo materno — barras empilhadas em 100%
+// ---------------------------------------------------------------------------
+
+export const MATERNAL_BANDS = [
+  { key: 'cure', label: 'Cura sem UTI', color: GREEN, text: '#FFFFFF' },
+  { key: 'icu', label: 'UTI e sobreviveu', color: AMBER, text: '#1C2434' },
+  { key: 'death', label: 'Óbito', color: RED, text: '#FFFFFF' },
+  { key: 'other', label: 'Outro ou em aberto', color: SLATE, text: '#1C2434' },
+] as const;
+
+export function maternalTooltip(group: MaternalGroup, minCases: number): string {
+  const lines = MATERNAL_BANDS.map((band) => {
+    const count = group[band.key];
+    return `${band.label}: <b>${count}</b> (${formatPercent(percentOf(count, group.total))})`;
+  });
+  const warning =
+    group.total < minCases
+      ? ['<i>Poucos casos: o percentual varia muito com 1 paciente a mais ou a menos.</i>']
+      : [];
+  return [`<b>${group.group}</b>: ${group.total} casos`, ...lines, ...warning].join('<br/>');
+}
+
+export function buildMaternalOutcomesOption(
+  data: MaternalOutcomesResponse,
+  theme: ChartTheme,
+): EChartsCoreOption {
+  const groups = data.groups.filter((group) => group.total > 0);
+  const option = buildShareBarsOption(
+    groups,
+    (group) => (group.total < data.min_cases ? `${group.group} *` : group.group),
+    MATERNAL_BANDS,
+    (group) => maternalTooltip(group, data.min_cases),
+    theme,
+  ) as { grid: object };
+  return { ...option, grid: { left: 48, right: 16, top: 44, bottom: 56 } };
+}
+
+// ---------------------------------------------------------------------------
+// Ranking simples — barras horizontais com contagem e percentual
+// ---------------------------------------------------------------------------
+
+export interface RankedBarsConfig {
+  /** Base do percentual: total de casos que responderam à pergunta. */
+  base: number;
+  color?: string;
+  /** `desc` ordena do maior ao menor; `keep` respeita a ordem recebida (etapas). */
+  order?: 'desc' | 'keep';
+  /** Espaço à esquerda para os rótulos longos. */
+  labelWidth?: number;
+}
+
+export function rankedBarsRows(items: LabeledCount[], order: 'desc' | 'keep'): LabeledCount[] {
+  return order === 'desc' ? [...items].sort((a, b) => b.count - a.count) : [...items];
+}
+
+export function rankedBarTooltip(item: LabeledCount, base: number): string {
+  return `<b>${item.label}</b><br/>${item.count.toLocaleString('pt-BR')} casos (${formatPercent(percentOf(item.count, base))})`;
+}
+
+export function buildRankedBarsOption(
+  items: LabeledCount[],
+  theme: ChartTheme,
+  { base, color = BLUE, order = 'desc', labelWidth = 200 }: RankedBarsConfig,
+): EChartsCoreOption {
+  const rows = rankedBarsRows(items, order);
+  return {
+    grid: { left: labelWidth, right: 110, top: 8, bottom: 24 },
+    tooltip: {
+      trigger: 'item',
+      backgroundColor: theme.tooltipBg,
+      borderColor: theme.grid,
+      textStyle: { color: theme.tooltipText },
+      formatter: (raw: unknown) => {
+        const item = (raw as { data?: { item?: LabeledCount } }).data?.item;
+        return item ? rankedBarTooltip(item, base) : '';
+      },
+    },
+    xAxis: {
+      type: 'value',
+      min: 0,
+      axisLabel: { color: theme.muted },
+      splitLine: { lineStyle: { color: theme.grid } },
+    },
+    yAxis: {
+      type: 'category',
+      inverse: true,
+      data: rows.map((row) => row.label),
+      axisTick: { show: false },
+      axisLine: { lineStyle: { color: theme.grid } },
+      axisLabel: { color: theme.text, width: labelWidth - 16, overflow: 'truncate' },
+    },
+    series: [
+      {
+        type: 'bar',
+        barMaxWidth: 26,
+        itemStyle: { color },
+        data: rows.map((item) => ({ value: item.count, item })),
+        label: {
+          show: true,
+          position: 'right',
+          color: theme.text,
+          formatter: (raw: unknown) => {
+            const item = (raw as { data: { item: LabeledCount } }).data.item;
+            return `${item.count.toLocaleString('pt-BR')} (${formatPercent(percentOf(item.count, base))})`;
+          },
         },
       },
     ],
