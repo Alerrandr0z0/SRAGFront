@@ -5,17 +5,21 @@ import CovidImmunizationCard from './CovidImmunizationCard';
 import DiagnosticLethalityCard from './DiagnosticLethalityCard';
 import DiagnosticMethodsCard from './DiagnosticMethodsCard';
 import FlowCard from './FlowCard';
+import HospitalStayCard from './HospitalStayCard';
 import IcuAccessCard from './IcuAccessCard';
 import ImagingCard from './ImagingCard';
 import LabPerformanceCard from './LabPerformanceCard';
 import MaternalOutcomesCard from './MaternalOutcomesCard';
 import NosocomialCard from './NosocomialCard';
 import NotificationDelayCard from './NotificationDelayCard';
+import NotifyingUnitsCard from './NotifyingUnitsCard';
 import OccupationCard from './OccupationCard';
 import OddsRatioCard from './OddsRatioCard';
 import SamplePositivityCard from './SamplePositivityCard';
 import type { TabSection } from './SectionTabs';
 import SignatureCard from './SignatureCard';
+import UnitDelayCard from './UnitDelayCard';
+import VaccineJourneyCard from './VaccineJourneyCard';
 
 export const SECTIONS = [
   {
@@ -35,6 +39,12 @@ export const SECTIONS = [
     label: 'Território',
     description:
       'Em quais bairros as notificações demoram mais. O mapa e a tabela de bairros ficam na página Sociodemográfica.',
+  },
+  {
+    id: 'unidades',
+    label: 'Unid. Saúde',
+    description:
+      'Quais unidades notificam mais, se notificam a tempo, quanto tempo os pacientes ficam internados e como a vacinação aparece na jornada. O caminho do paciente (Sankey) fica na aba Perfil clínico.',
   },
   {
     id: 'clinico',
@@ -75,6 +85,15 @@ export function SectionContent({ id, filters }: { id: SectionId; filters: SragFi
       );
     case 'territorio':
       return <NotificationDelayCard filters={filters} />;
+    case 'unidades':
+      return (
+        <>
+          <NotifyingUnitsCard filters={filters} />
+          <UnitDelayCard filters={filters} />
+          <HospitalStayCard filters={filters} />
+          <VaccineJourneyCard filters={filters} />
+        </>
+      );
     case 'clinico':
       return (
         <>

@@ -68,4 +68,11 @@ describe('buildAnalyticsUrl', () => {
       '/analytics/covid_immunization',
     );
   });
+
+  it('monta as URLs dos gráficos de unidades de saúde', () => {
+    expect(buildAnalyticsUrl('/analytics/notifying_units', { year: '2025' })).toBe(
+      '/analytics/notifying_units?years=2025',
+    );
+    expect(buildAnalyticsUrl('/analytics/vaccine_journey', {})).toBe('/analytics/vaccine_journey');
+  });
 });

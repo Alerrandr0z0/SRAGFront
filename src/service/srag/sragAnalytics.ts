@@ -423,3 +423,100 @@ export function getCovidImmunization(filters: SragFilters): Promise<CovidImmuniz
     buildAnalyticsUrl('/analytics/covid_immunization', filters),
   );
 }
+
+// --- Unidades de saúde ---
+
+export interface NotifyingUnit {
+  id_unidade: string;
+  name: string;
+  total: number;
+  cure: number;
+  death: number;
+  other: number;
+}
+
+export interface NotifyingUnitsResponse {
+  total: number;
+  /** Casos sem código de unidade notificadora. */
+  unidentified: number;
+  /** Da unidade que mais notificou para a que menos notificou. */
+  items: NotifyingUnit[];
+}
+
+export interface UnitDelayRow {
+  id_unidade: string;
+  unit: string;
+  total: number;
+  median_days: number;
+  mean_days: number;
+  within_limit_pct: number;
+  status: NotificationDelayStatus;
+}
+
+export interface UnitNotificationDelayResponse {
+  limit_days: number;
+  warn_days: number;
+  critical_days: number;
+  min_cases: number;
+  /** Da maior para a menor mediana de atraso. */
+  units: UnitDelayRow[];
+  hidden_count: number;
+}
+
+export interface StayCurvePoint {
+  day: number;
+  cure_pct: number;
+  death_pct: number;
+}
+
+export interface HospitalStayResponse {
+  closed: number;
+  median_days: number | null;
+  median_cure_days: number | null;
+  median_death_days: number | null;
+  mean_days: number | null;
+  bed_days: number;
+  daily_census: number | null;
+  curve: StayCurvePoint[];
+}
+
+export interface VaccineJourneyStage {
+  stage: string;
+  total: number;
+  median_days_to_hospital: number | null;
+  median_stay_days: number | null;
+  icu_pct: number | null;
+  cure_pct: number | null;
+  death_pct: number | null;
+  resolved: number;
+}
+
+export interface VaccineJourneyResponse {
+  /** Abaixo disso os números da etapa são anedóticos. */
+  min_cases: number;
+  stages: VaccineJourneyStage[];
+}
+
+export function getNotifyingUnits(filters: SragFilters): Promise<NotifyingUnitsResponse> {
+  return getApiData<NotifyingUnitsResponse>(
+    buildAnalyticsUrl('/analytics/notifying_units', filters),
+  );
+}
+
+export function getUnitNotificationDelay(
+  filters: SragFilters,
+): Promise<UnitNotificationDelayResponse> {
+  return getApiData<UnitNotificationDelayResponse>(
+    buildAnalyticsUrl('/analytics/unit_notification_delay', filters),
+  );
+}
+
+export function getHospitalStay(filters: SragFilters): Promise<HospitalStayResponse> {
+  return getApiData<HospitalStayResponse>(buildAnalyticsUrl('/analytics/hospital_stay', filters));
+}
+
+export function getVaccineJourney(filters: SragFilters): Promise<VaccineJourneyResponse> {
+  return getApiData<VaccineJourneyResponse>(
+    buildAnalyticsUrl('/analytics/vaccine_journey', filters),
+  );
+}

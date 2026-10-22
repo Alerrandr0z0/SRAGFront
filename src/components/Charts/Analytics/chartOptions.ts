@@ -21,6 +21,8 @@ import type {
   SamplePositivityResponse,
   SamplePositivityRow,
   SignatureCell,
+  StayCurvePoint,
+  UnitDelayRow,
 } from '../../../service/srag/sragAnalytics';
 import type { ChartTheme } from './chartTheme';
 import type { EChartsCoreOption } from './echartsCore';
@@ -851,11 +853,12 @@ export function buildNotificationDelayOption(
   rows: NotificationDelayBairro[],
   limitDays: number,
   theme: ChartTheme,
+  labelWidth = 190,
 ): EChartsCoreOption {
   const longest = Math.max(0, ...rows.map((row) => row.median_days));
 
   return {
-    grid: { left: 190, right: 120, top: 32, bottom: 32 },
+    grid: { left: labelWidth, right: 120, top: 32, bottom: 32 },
     tooltip: {
       trigger: 'item',
       backgroundColor: theme.tooltipBg,
@@ -880,7 +883,7 @@ export function buildNotificationDelayOption(
       data: rows.map((row) => row.bairro),
       axisTick: { show: false },
       axisLine: { lineStyle: { color: theme.grid } },
-      axisLabel: { color: theme.text },
+      axisLabel: { color: theme.text, width: labelWidth - 16, overflow: 'truncate' },
     },
     series: [
       {
@@ -1024,6 +1027,100 @@ export function buildRankedBarsOption(
           },
         },
       },
+    ],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Atraso de notificação por unidade — mesmas barras do atraso por bairro
+// ---------------------------------------------------------------------------
+
+/** O atraso por unidade usa o mesmo gráfico do atraso por bairro: só muda o nome da linha. */
+export function unitDelayAsRows(units: UnitDelayRow[]): NotificationDelayBairro[] {
+  return units.map(({ unit, id_unidade: _id, ...rest }) => ({ ...rest, bairro: unit }));
+}
+
+export function buildUnitDelayOption(
+  units: UnitDelayRow[],
+  limitDays: number,
+  theme: ChartTheme,
+): EChartsCoreOption {
+  return buildNotificationDelayOption(unitDelayAsRows(units), limitDays, theme, 300);
+}
+
+// ---------------------------------------------------------------------------
+// Tempo de internação — quanto já teve alta ou morreu até cada dia
+// ---------------------------------------------------------------------------
+
+export function stayCurveTooltip(point: StayCurvePoint): string {
+  return [
+    `<b>Até o ${point.day}º dia de internação</b>`,
+    `Já tiveram alta: <b>${formatPercent(point.cure_pct)}</b>`,
+    `Morreram: <b>${formatPercent(point.death_pct)}</b>`,
+  ].join('<br/>');
+}
+
+export function buildStayCurveOption(
+  curve: StayCurvePoint[],
+  theme: ChartTheme,
+): EChartsCoreOption {
+  const line = (name: string, color: string, values: number[]) => ({
+    name,
+    type: 'line',
+    showSymbol: false,
+    smooth: false,
+    lineStyle: { width: 3, color },
+    itemStyle: { color },
+    areaStyle: { color, opacity: 0.1 },
+    data: values,
+  });
+  return {
+    legend: {
+      top: 0,
+      data: ['Já tiveram alta', 'Morreram'],
+      textStyle: { color: theme.text },
+    },
+    grid: { left: 56, right: 24, top: 44, bottom: 56 },
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: theme.tooltipBg,
+      borderColor: theme.grid,
+      textStyle: { color: theme.tooltipText },
+      formatter: (raw: unknown) => {
+        const [first] = raw as { dataIndex: number }[];
+        const point = first ? curve[first.dataIndex] : undefined;
+        return point ? stayCurveTooltip(point) : '';
+      },
+    },
+    xAxis: {
+      type: 'category',
+      boundaryGap: false,
+      data: curve.map((point) => point.day),
+      name: 'Dias de internação',
+      nameLocation: 'middle',
+      nameGap: 32,
+      nameTextStyle: { color: theme.muted },
+      axisLabel: { color: theme.muted, interval: 4 },
+      axisLine: { lineStyle: { color: theme.grid } },
+    },
+    yAxis: {
+      type: 'value',
+      min: 0,
+      max: 100,
+      axisLabel: { color: theme.muted, formatter: '{value}%' },
+      splitLine: { lineStyle: { color: theme.grid } },
+    },
+    series: [
+      line(
+        'Já tiveram alta',
+        GREEN,
+        curve.map((point) => point.cure_pct),
+      ),
+      line(
+        'Morreram',
+        RED,
+        curve.map((point) => point.death_pct),
+      ),
     ],
   };
 }
