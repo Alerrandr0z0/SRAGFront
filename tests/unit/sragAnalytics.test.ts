@@ -59,4 +59,13 @@ describe('buildAnalyticsUrl', () => {
       buildAnalyticsUrl('/analytics/notification_delay', { year: '2025', bairro: 'ALTO' }),
     ).toBe('/analytics/notification_delay?years=2025&bairros=ALTO');
   });
+
+  it('monta as URLs dos gráficos do cidadão', () => {
+    expect(buildAnalyticsUrl('/analytics/maternal_outcomes', { year: '2024' })).toBe(
+      '/analytics/maternal_outcomes?years=2024',
+    );
+    expect(buildAnalyticsUrl('/analytics/covid_immunization', {})).toBe(
+      '/analytics/covid_immunization',
+    );
+  });
 });

@@ -1,13 +1,17 @@
 import type { SragFilters } from '../../../service/srag/sragFilters';
+import AnimalContactCard from './AnimalContactCard';
 import AntiviralCard from './AntiviralCard';
+import CovidImmunizationCard from './CovidImmunizationCard';
 import DiagnosticLethalityCard from './DiagnosticLethalityCard';
 import DiagnosticMethodsCard from './DiagnosticMethodsCard';
 import FlowCard from './FlowCard';
 import IcuAccessCard from './IcuAccessCard';
 import ImagingCard from './ImagingCard';
 import LabPerformanceCard from './LabPerformanceCard';
+import MaternalOutcomesCard from './MaternalOutcomesCard';
 import NosocomialCard from './NosocomialCard';
 import NotificationDelayCard from './NotificationDelayCard';
+import OccupationCard from './OccupationCard';
 import OddsRatioCard from './OddsRatioCard';
 import SamplePositivityCard from './SamplePositivityCard';
 import type { TabSection } from './SectionTabs';
@@ -36,6 +40,12 @@ export const SECTIONS = [
     id: 'clinico',
     label: 'Perfil clínico',
     description: 'O caminho do paciente da internação ao desfecho e como cada agente se manifesta.',
+  },
+  {
+    id: 'cidadao',
+    label: 'Cidadão',
+    description:
+      'Quem adoece e o que o cerca: gestantes, ocupação, contato com animais e vacinação. Idade, raça e escolaridade ficam na página Sociodemográfica.',
   },
 ] as const satisfies readonly TabSection<string>[];
 
@@ -70,6 +80,15 @@ export function SectionContent({ id, filters }: { id: SectionId; filters: SragFi
         <>
           <FlowCard filters={filters} />
           <SignatureCard filters={filters} />
+        </>
+      );
+    case 'cidadao':
+      return (
+        <>
+          <MaternalOutcomesCard filters={filters} />
+          <CovidImmunizationCard filters={filters} />
+          <OccupationCard filters={filters} />
+          <AnimalContactCard filters={filters} />
         </>
       );
   }
