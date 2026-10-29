@@ -32,7 +32,6 @@ jobs:
           port: ${{ secrets.DEPLOY_PORT }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script_stop: true
           script: |
             flock -w 300 /tmp/srag-deploy.lock sh -ceu '
               git -C /root/apps/SRAGBack pull --ff-only
