@@ -18,6 +18,7 @@ import OddsRatioCard from './OddsRatioCard';
 import SamplePositivityCard from './SamplePositivityCard';
 import type { TabSection } from './SectionTabs';
 import SignatureCard from './SignatureCard';
+import SeverityLethalityAgeCard from './SeverityLethalityAgeCard';
 import UnitDelayCard from './UnitDelayCard';
 import VaccineJourneyCard from './VaccineJourneyCard';
 
@@ -72,6 +73,7 @@ export function SectionContent({ id, filters }: { id: SectionId; filters: SragFi
           <NosocomialCard filters={filters} />
           <IcuAccessCard filters={filters} />
           <OddsRatioCard filters={filters} />
+          <SeverityLethalityAgeCard filters={filters} />
         </>
       );
     case 'laboratorio':

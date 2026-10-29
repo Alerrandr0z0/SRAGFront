@@ -10,6 +10,7 @@ import type {
   IcuAccessResponse,
   IcuGranularity,
   ImagingFinding,
+  LethalityAgeAgentResponse,
   LabeledCount,
   MaternalGroup,
   MaternalOutcomesResponse,
@@ -20,6 +21,8 @@ import type {
   OddsRatioRow,
   SamplePositivityResponse,
   SamplePositivityRow,
+  SeverityByAgePoint,
+  SeverityByAgeResponse,
   SignatureCell,
   StayCurvePoint,
   UnitDelayRow,
@@ -830,6 +833,159 @@ export function buildImagingOption(rows: ImagingFinding[], theme: ChartTheme): E
 }
 
 // ---------------------------------------------------------------------------
+// Gravidade e letalidade por faixa etária — barras empilhadas + linhas de CFR
+// ---------------------------------------------------------------------------
+
+const AGENT_COLORS: Record<string, string> = {
+  VSR: '#0F766E',
+  Influenza: '#2563EB',
+  'COVID-19': '#EA580C',
+  'Outros Vírus': GREEN,
+  'Outro Agente': '#B91C1C',
+  'Não Especificada': SLATE,
+};
+
+export const SEVERITY_BANDS = [
+  { key: 'death', label: 'Óbito', color: RED },
+  { key: 'uti', label: 'UTI (Sobrevivente)', color: AMBER },
+  { key: 'ward', label: 'Enfermaria/Não Internado', color: SLATE },
+] as const;
+
+type SeverityBandKey = (typeof SEVERITY_BANDS)[number]['key'];
+
+export function severityRates(row: SeverityByAgePoint): Record<SeverityBandKey, number> {
+  return {
+    death: row.death_rate,
+    uti: Math.max(0, row.uti_rate - row.death_rate),
+    ward: Math.max(0, 100 - Math.max(row.uti_rate, row.death_rate)),
+  };
+}
+
+interface AxisTooltipParam {
+  name: string;
+  seriesName: string;
+  seriesType: string;
+  marker: string;
+  value: number;
+  color: string;
+}
+
+export function severityLethalityTooltip(
+  params: AxisTooltipParam[],
+  rows: SeverityByAgeResponse,
+): string {
+  if (params.length === 0) return '';
+
+  const ageGroup = params[0].name;
+  const row = rows.find((item) => item.age_group === ageGroup);
+  const rates = row ? severityRates(row) : null;
+
+  const lines = params.map((param) => {
+    const label = `${param.marker} ${param.seriesName}`;
+    if (param.seriesType === 'bar') {
+      const band = SEVERITY_BANDS.find((item) => item.label === param.seriesName);
+      const rate = rates && band ? formatPercent(rates[band.key]) : '—';
+      return `${label}: <b>${param.value}</b> (${rate})`;
+    }
+    return `${label}: <b style="color:${param.color}">${formatPercent(Number(param.value))}</b>`;
+  });
+
+  return [`<b>${ageGroup}</b>`, row ? `Total de casos: <b>${row.total_cases}</b>` : '', ...lines]
+    .filter(Boolean)
+    .join('<br/>');
+}
+
+export function buildSeverityLethalityOption(
+  severity: SeverityByAgeResponse,
+  lethality: LethalityAgeAgentResponse | null,
+  theme: ChartTheme,
+): EChartsCoreOption {
+  const ageGroups = severity.map((row) => row.age_group);
+
+  const barSeries = SEVERITY_BANDS.map((band) => ({
+    name: band.label,
+    type: 'bar',
+    stack: 'severity',
+    yAxisIndex: 0,
+    itemStyle: { color: band.color },
+    data: severity.map((row) => Math.round(row.total_cases * (severityRates(row)[band.key] / 100))),
+  }));
+
+  // Uma linha de CFR por agente; agentes sem nenhum valor > 0 ficam de fora.
+  const lineSeries = (lethality?.agents ?? []).flatMap((agent, agentIndex) => {
+    const points = ageGroups.map((ageGroup) => {
+      const bandIndex = lethality?.age_bands.indexOf(ageGroup) ?? -1;
+      // null = poucos casos para estimar: a linha fica com lacuna em vez de cair a 0%.
+      return bandIndex === -1 ? null : (lethality?.matrix[agentIndex]?.[bandIndex] ?? null);
+    });
+    if (!points.some((value) => value !== null && value > 0)) return [];
+
+    const color = AGENT_COLORS[agent] ?? theme.muted;
+    return [
+      {
+        name: `${agent} (CFR)`,
+        type: 'line',
+        yAxisIndex: 1,
+        z: 10,
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 6,
+        lineStyle: { width: 2, color },
+        itemStyle: { color },
+        data: points,
+      },
+    ];
+  });
+
+  const series = [...barSeries, ...lineSeries];
+  const axisLine = { show: true, lineStyle: { color: theme.grid } };
+
+  return {
+    legend: {
+      type: 'scroll',
+      bottom: 0,
+      data: series.map((item) => item.name),
+      textStyle: { color: theme.text, fontSize: 11 },
+    },
+    grid: { left: 16, right: 16, top: 40, bottom: 56, containLabel: true },
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      backgroundColor: theme.tooltipBg,
+      borderColor: theme.grid,
+      textStyle: { color: theme.tooltipText },
+      formatter: (raw: unknown) => severityLethalityTooltip(raw as AxisTooltipParam[], severity),
+    },
+    xAxis: {
+      type: 'category',
+      data: ageGroups,
+      axisTick: { show: false },
+      axisLine,
+      axisLabel: { color: theme.muted, rotate: 25 },
+    },
+    yAxis: [
+      {
+        type: 'value',
+        name: 'Volume de casos',
+        nameTextStyle: { color: theme.muted },
+        axisLine,
+        axisLabel: { color: theme.muted },
+        splitLine: { lineStyle: { color: theme.grid, type: 'dashed' } },
+      },
+      {
+        type: 'value',
+        name: 'Letalidade (CFR %)',
+        nameTextStyle: { color: theme.muted },
+        min: 0,
+        max: 100,
+        axisLine,
+        axisLabel: { color: theme.muted, formatter: '{value}%' },
+        splitLine: { show: false },
+      },
+    ],
+    series,
+  };
+}
 // Atraso de notificação por bairro — barras horizontais com limite aceitável
 // ---------------------------------------------------------------------------
 
