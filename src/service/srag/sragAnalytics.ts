@@ -247,6 +247,33 @@ export function buildAnalyticsUrl(
   for (const [key, value] of Object.entries(extra)) params.set(key, value);
   const query = params.toString();
   return query ? `${path}?${query}` : path;
+} 
+
+// gravidade e letalidade por faixa etária
+
+export interface SeverityByAgePoint {
+  age_group: string;
+  total_cases: number;
+  /** Todos que passaram pela UTI, inclusive os que morreram nela. */
+  uti_rate: number;
+  support_rate: number;
+  /** Óbitos, dentro ou fora da UTI. */
+  death_rate: number;
+  /** Passaram pela UTI e sobreviveram. */
+  icu_survivor_rate: number;
+  /** Nem UTI nem óbito. death + icu_survivor + ward = 100%. */
+  ward_rate: number;
+}
+
+export type SeverityByAgeResponse = SeverityByAgePoint[];
+
+export interface LethalityAgeAgentResponse {
+  /** Células com menos casos com desfecho que isto vêm como null. */
+  min_resolved: number;
+  age_bands: string[];
+  agents: string[];
+  /** matrix[i][j] = CFR (%) do agente agents[i] na faixa age_bands[j]. */
+  matrix: (number | null)[][];
 }
 
 export function getClinicalFlow(filters: SragFilters): Promise<ClinicalFlowResponse> {
@@ -322,5 +349,17 @@ export function getAntiviralWindows(filters: SragFilters): Promise<AntiviralWind
 export function getImagingSeverity(filters: SragFilters): Promise<ImagingSeverityResponse> {
   return getApiData<ImagingSeverityResponse>(
     buildAnalyticsUrl('/analytics/imaging_severity', filters),
+  );
+}
+
+export function getSeverityByAge(filters: SragFilters): Promise<SeverityByAgeResponse> {
+  return getApiData<SeverityByAgeResponse>(
+    buildAnalyticsUrl('/analytics/severity_by_age', filters),
+  );
+}
+
+export function getLethalityByAgeAgent(filters: SragFilters): Promise<LethalityAgeAgentResponse> {
+  return getApiData<LethalityAgeAgentResponse>(
+    buildAnalyticsUrl('/analytics/lethality_age_agent', filters),
   );
 }
