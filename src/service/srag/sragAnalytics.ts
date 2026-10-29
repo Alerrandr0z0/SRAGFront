@@ -391,6 +391,9 @@ export function getSeverityByAge(filters: SragFilters): Promise<SeverityByAgeRes
 export function getLethalityByAgeAgent(filters: SragFilters): Promise<LethalityAgeAgentResponse> {
   return getApiData<LethalityAgeAgentResponse>(
     buildAnalyticsUrl('/analytics/lethality_age_agent', filters),
+  );
+}
+
 export function getNotificationDelay(filters: SragFilters): Promise<NotificationDelayResponse> {
   return getApiData<NotificationDelayResponse>(
     buildAnalyticsUrl('/analytics/notification_delay', filters),
