@@ -7,10 +7,15 @@ import {
   buildHeatmapOption,
   buildIcuAccessOption,
   buildImagingOption,
+  buildMaternalOutcomesOption,
   buildNosocomialOption,
+  buildNotificationDelayOption,
   buildOddsRatioOption,
+  buildRankedBarsOption,
   buildSamplePositivityOption,
   buildSankeyOption,
+  buildStayCurveOption,
+  buildUnitDelayOption,
   diagnosticPeriodTooltip,
   formatPercent,
   formatPeriod,
@@ -18,12 +23,18 @@ import {
   icuPeriodTooltip,
   imagingTooltip,
   lethalityTooltip,
+  maternalTooltip,
   nosocomialTooltip,
+  notificationDelayTooltip,
   oddsRatioColor,
   percentOf,
   prepareOddsRatio,
+  rankedBarTooltip,
+  rankedBarsRows,
   samplePositivityTooltip,
   sankeyTooltip,
+  stayCurveTooltip,
+  unitDelayAsRows,
 } from '../../src/components/Charts/Analytics/chartOptions';
 import { chartTheme } from '../../src/components/Charts/Analytics/chartTheme';
 import type {
@@ -32,7 +43,9 @@ import type {
   DiagnosticMethodsResponse,
   IcuAccessResponse,
   ImagingFinding,
+  MaternalOutcomesResponse,
   NosocomialRiskResponse,
+  NotificationDelayBairro,
   OddsRatioRow,
   SamplePositivityResponse,
 } from '../../src/service/srag/sragAnalytics';
@@ -481,5 +494,224 @@ describe('buildImagingOption', () => {
     expect(tooltip).toContain('Foram para a UTI: <b>80,0%</b>');
     expect(tooltip).toContain('4 óbitos em 18 casos com desfecho');
     expect(imagingTooltip(rows[2])).toContain('Letalidade: <b>—</b>');
+  });
+});
+
+describe('buildNotificationDelayOption', () => {
+  const bairro = (
+    name: string,
+    median: number,
+    status: NotificationDelayBairro['status'],
+  ): NotificationDelayBairro => ({
+    bairro: name,
+    total: 12,
+    median_days: median,
+    mean_days: median + 0.4,
+    within_limit_pct: 40,
+    status,
+  });
+  const rows = [
+    bairro('CENTRO', 13, 'critico'),
+    bairro('ALTO', 8.5, 'atencao'),
+    bairro('SUL', 3, 'adequado'),
+  ];
+  type Option = {
+    xAxis: { max: number };
+    yAxis: { inverse: boolean; data: string[] };
+    series: {
+      data: { value: number; itemStyle: { color: string } }[];
+      markLine: { data: { xAxis: number }[]; label: { formatter: string } };
+    }[];
+  };
+
+  it('mantém a ordem recebida e deixa o maior atraso no topo', () => {
+    const option = buildNotificationDelayOption(rows, 7, theme) as Option;
+    expect(option.yAxis.data).toEqual(['CENTRO', 'ALTO', 'SUL']);
+    expect(option.yAxis.inverse).toBe(true);
+  });
+
+  it('pinta cada barra pelo status do bairro', () => {
+    const option = buildNotificationDelayOption(rows, 7, theme) as Option;
+    expect(option.series[0].data.map((bar) => bar.itemStyle.color)).toEqual([
+      '#DC2626',
+      '#F59E0B',
+      '#10B981',
+    ]);
+  });
+
+  it('marca o limite aceitável com uma linha tracejada', () => {
+    const option = buildNotificationDelayOption(rows, 7, theme) as Option;
+    const [line] = option.series[0].markLine.data;
+    expect(line.xAxis).toBe(7);
+    expect(option.series[0].markLine.label.formatter).toBe('Limite aceitável: 7 dias');
+  });
+
+  it('deixa folga no eixo para o maior atraso e para o limite', () => {
+    expect((buildNotificationDelayOption(rows, 7, theme) as Option).xAxis.max).toBe(16);
+    expect(
+      (buildNotificationDelayOption([bairro('X', 1, 'adequado')], 7, theme) as Option).xAxis.max,
+    ).toBe(10);
+  });
+
+  it('não quebra sem nenhum bairro', () => {
+    const option = buildNotificationDelayOption([], 7, theme) as Option;
+    expect(option.yAxis.data).toEqual([]);
+    expect(option.xAxis.max).toBe(10);
+  });
+
+  it('descreve mediana, média e % no prazo no tooltip', () => {
+    const tooltip = notificationDelayTooltip(rows[1], 7);
+    expect(tooltip).toContain('<b>ALTO</b>: 12 casos');
+    expect(tooltip).toContain('Mediana: <b>8,5 dias</b> (média 8,9)');
+    expect(tooltip).toContain('Notificados em até 7 dias: <b>40,0%</b>');
+  });
+});
+
+describe('buildMaternalOutcomesOption', () => {
+  const group = (name: string, cure: number, icu: number, death: number, other = 0) => ({
+    group: name,
+    total: cure + icu + death + other,
+    cure,
+    icu,
+    death,
+    other,
+  });
+  const data: MaternalOutcomesResponse = {
+    gestantes_total: 14,
+    puerperas_total: 2,
+    min_cases: 10,
+    groups: [
+      group('Gest. 1º tri', 8, 1, 1),
+      group('Gest. 3º tri', 3, 0, 1),
+      group('Puérpera', 1, 1, 0),
+    ],
+  };
+  type Option = { xAxis: { data: string[] }; series: { name: string; data: number[] }[] };
+
+  it('empilha os quatro desfechos somando 100% e marca grupos pequenos com *', () => {
+    const option = buildMaternalOutcomesOption(data, theme) as Option;
+    expect(option.xAxis.data).toEqual([
+      'Gest. 1º tri\n(n=10)',
+      'Gest. 3º tri *\n(n=4)',
+      'Puérpera *\n(n=2)',
+    ]);
+    expect(option.series.map((serie) => serie.name)).toEqual([
+      'Cura sem UTI',
+      'UTI e sobreviveu',
+      'Óbito',
+      'Outro ou em aberto',
+    ]);
+    expect(option.series[0].data).toEqual([80, 75, 50]);
+    expect(option.series[2].data).toEqual([10, 25, 0]);
+  });
+
+  it('avisa no tooltip quando o grupo tem poucos casos', () => {
+    expect(maternalTooltip(data.groups[1], 10)).toContain('Poucos casos');
+    expect(maternalTooltip(data.groups[0], 10)).not.toContain('Poucos casos');
+    expect(maternalTooltip(data.groups[0], 10)).toContain('Cura sem UTI: <b>8</b> (80,0%)');
+  });
+});
+
+describe('buildRankedBarsOption', () => {
+  const items = [
+    { label: 'B', count: 5 },
+    { label: 'A', count: 20 },
+    { label: 'C', count: 0 },
+  ];
+  type Option = {
+    yAxis: { data: string[]; inverse: boolean };
+    series: { data: { value: number }[] }[];
+  };
+
+  it('ordena do maior ao menor deixando o maior no topo', () => {
+    const option = buildRankedBarsOption(items, theme, { base: 25 }) as Option;
+    expect(option.yAxis.data).toEqual(['A', 'B', 'C']);
+    expect(option.yAxis.inverse).toBe(true);
+    expect(option.series[0].data.map((d) => d.value)).toEqual([20, 5, 0]);
+  });
+
+  it('mantém a ordem recebida quando são etapas', () => {
+    const option = buildRankedBarsOption(items, theme, { base: 25, order: 'keep' }) as Option;
+    expect(option.yAxis.data).toEqual(['B', 'A', 'C']);
+  });
+
+  it('não altera a lista original', () => {
+    rankedBarsRows(items, 'desc');
+    expect(items.map((item) => item.label)).toEqual(['B', 'A', 'C']);
+  });
+
+  it('calcula o percentual sobre a base informada', () => {
+    expect(rankedBarTooltip(items[1], 25)).toContain('20 casos (80,0%)');
+    expect(rankedBarTooltip(items[1], 0)).toContain('(0,0%)');
+  });
+});
+
+describe('atraso por unidade', () => {
+  const unit = (name: string, median: number, status: 'adequado' | 'atencao' | 'critico') => ({
+    id_unidade: '1',
+    unit: name,
+    total: 10,
+    median_days: median,
+    mean_days: median + 1,
+    within_limit_pct: 40,
+    status,
+  });
+  const units = [unit('HOSPITAL A', 12, 'critico'), unit('UPA B', 3, 'adequado')];
+
+  it('troca o nome da unidade pelo campo que o gráfico de bairros espera', () => {
+    const rows = unitDelayAsRows(units);
+    expect(rows[0].bairro).toBe('HOSPITAL A');
+    expect(rows[0]).not.toHaveProperty('unit');
+    expect(rows[0]).not.toHaveProperty('id_unidade');
+    expect(rows[0].median_days).toBe(12);
+  });
+
+  it('desenha uma barra por unidade, com a cor do status e o limite de 7 dias', () => {
+    type Option = {
+      grid: { left: number };
+      yAxis: { data: string[]; inverse: boolean };
+      series: {
+        data: { value: number; itemStyle: { color: string } }[];
+        markLine: { data: { xAxis: number }[] };
+      }[];
+    };
+    const option = buildUnitDelayOption(units, 7, theme) as Option;
+    expect(option.yAxis.data).toEqual(['HOSPITAL A', 'UPA B']);
+    expect(option.yAxis.inverse).toBe(true);
+    expect(option.grid.left).toBeGreaterThan(190);
+    expect(option.series[0].data.map((point) => point.value)).toEqual([12, 3]);
+    expect(option.series[0].data[0].itemStyle.color).not.toBe(
+      option.series[0].data[1].itemStyle.color,
+    );
+    expect(option.series[0].markLine.data).toEqual([{ xAxis: 7 }]);
+  });
+});
+
+describe('buildStayCurveOption', () => {
+  const curve = [
+    { day: 0, cure_pct: 0, death_pct: 0 },
+    { day: 1, cure_pct: 20, death_pct: 5 },
+    { day: 2, cure_pct: 55.5, death_pct: 10 },
+  ];
+  type Option = {
+    xAxis: { data: number[] };
+    yAxis: { max: number };
+    series: { name: string; data: number[] }[];
+  };
+
+  it('desenha duas linhas, alta e óbito, de 0 a 100%', () => {
+    const option = buildStayCurveOption(curve, theme) as Option;
+    expect(option.xAxis.data).toEqual([0, 1, 2]);
+    expect(option.yAxis.max).toBe(100);
+    expect(option.series.map((serie) => serie.name)).toEqual(['Já tiveram alta', 'Morreram']);
+    expect(option.series[0].data).toEqual([0, 20, 55.5]);
+    expect(option.series[1].data).toEqual([0, 5, 10]);
+  });
+
+  it('descreve o dia no tooltip', () => {
+    const tooltip = stayCurveTooltip(curve[2]);
+    expect(tooltip).toContain('Até o 2º dia de internação');
+    expect(tooltip).toContain('Já tiveram alta: <b>55,5%</b>');
+    expect(tooltip).toContain('Morreram: <b>10,0%</b>');
   });
 });

@@ -238,6 +238,36 @@ export interface ImagingSeverityResponse {
   ct: ImagingGroup;
 }
 
+// --- Território: atraso de notificação por bairro ---
+
+export type NotificationDelayStatus = 'adequado' | 'atencao' | 'critico';
+
+export interface NotificationDelayBairro {
+  bairro: string;
+  total: number;
+  median_days: number;
+  mean_days: number;
+  within_limit_pct: number;
+  status: NotificationDelayStatus;
+}
+
+export interface NotificationDelayResponse {
+  limit_days: number;
+  warn_days: number;
+  critical_days: number;
+  min_cases: number;
+  overall: {
+    total: number;
+    median_days: number | null;
+    within_limit_pct: number | null;
+    status: NotificationDelayStatus | null;
+  };
+  /** Da maior para a menor mediana de atraso. */
+  bairros: NotificationDelayBairro[];
+  /** Bairros com menos casos que o mínimo, fora do ranking. */
+  hidden_count: number;
+}
+
 export function buildAnalyticsUrl(
   path: string,
   filters: SragFilters,
@@ -361,5 +391,168 @@ export function getSeverityByAge(filters: SragFilters): Promise<SeverityByAgeRes
 export function getLethalityByAgeAgent(filters: SragFilters): Promise<LethalityAgeAgentResponse> {
   return getApiData<LethalityAgeAgentResponse>(
     buildAnalyticsUrl('/analytics/lethality_age_agent', filters),
+export function getNotificationDelay(filters: SragFilters): Promise<NotificationDelayResponse> {
+  return getApiData<NotificationDelayResponse>(
+    buildAnalyticsUrl('/analytics/notification_delay', filters),
+  );
+}
+
+// --- Cidadão ---
+
+export interface LabeledCount {
+  label: string;
+  count: number;
+}
+
+export interface MaternalGroup {
+  group: string;
+  total: number;
+  cure: number;
+  icu: number;
+  death: number;
+  other: number;
+}
+
+export interface MaternalOutcomesResponse {
+  gestantes_total: number;
+  puerperas_total: number;
+  /** Abaixo disso o percentual do grupo é anedótico. */
+  min_cases: number;
+  groups: MaternalGroup[];
+}
+
+export interface OccupationProfileResponse {
+  total: number;
+  informed: number;
+  items: LabeledCount[];
+}
+
+export interface AnimalContactResponse {
+  total: number;
+  ignored: number;
+  items: LabeledCount[];
+}
+
+export interface CovidImmunizationResponse {
+  manufacturers: LabeledCount[];
+  dose_stages: LabeledCount[];
+}
+
+export function getMaternalOutcomes(filters: SragFilters): Promise<MaternalOutcomesResponse> {
+  return getApiData<MaternalOutcomesResponse>(
+    buildAnalyticsUrl('/analytics/maternal_outcomes', filters),
+  );
+}
+
+export function getOccupationProfile(filters: SragFilters): Promise<OccupationProfileResponse> {
+  return getApiData<OccupationProfileResponse>(
+    buildAnalyticsUrl('/analytics/occupation_profile', filters),
+  );
+}
+
+export function getAnimalContact(filters: SragFilters): Promise<AnimalContactResponse> {
+  return getApiData<AnimalContactResponse>(buildAnalyticsUrl('/analytics/animal_contact', filters));
+}
+
+export function getCovidImmunization(filters: SragFilters): Promise<CovidImmunizationResponse> {
+  return getApiData<CovidImmunizationResponse>(
+    buildAnalyticsUrl('/analytics/covid_immunization', filters),
+  );
+}
+
+// --- Unidades de saúde ---
+
+export interface NotifyingUnit {
+  id_unidade: string;
+  name: string;
+  total: number;
+  cure: number;
+  death: number;
+  other: number;
+}
+
+export interface NotifyingUnitsResponse {
+  total: number;
+  /** Casos sem código de unidade notificadora. */
+  unidentified: number;
+  /** Da unidade que mais notificou para a que menos notificou. */
+  items: NotifyingUnit[];
+}
+
+export interface UnitDelayRow {
+  id_unidade: string;
+  unit: string;
+  total: number;
+  median_days: number;
+  mean_days: number;
+  within_limit_pct: number;
+  status: NotificationDelayStatus;
+}
+
+export interface UnitNotificationDelayResponse {
+  limit_days: number;
+  warn_days: number;
+  critical_days: number;
+  min_cases: number;
+  /** Da maior para a menor mediana de atraso. */
+  units: UnitDelayRow[];
+  hidden_count: number;
+}
+
+export interface StayCurvePoint {
+  day: number;
+  cure_pct: number;
+  death_pct: number;
+}
+
+export interface HospitalStayResponse {
+  closed: number;
+  median_days: number | null;
+  median_cure_days: number | null;
+  median_death_days: number | null;
+  mean_days: number | null;
+  bed_days: number;
+  daily_census: number | null;
+  curve: StayCurvePoint[];
+}
+
+export interface VaccineJourneyStage {
+  stage: string;
+  total: number;
+  median_days_to_hospital: number | null;
+  median_stay_days: number | null;
+  icu_pct: number | null;
+  cure_pct: number | null;
+  death_pct: number | null;
+  resolved: number;
+}
+
+export interface VaccineJourneyResponse {
+  /** Abaixo disso os números da etapa são anedóticos. */
+  min_cases: number;
+  stages: VaccineJourneyStage[];
+}
+
+export function getNotifyingUnits(filters: SragFilters): Promise<NotifyingUnitsResponse> {
+  return getApiData<NotifyingUnitsResponse>(
+    buildAnalyticsUrl('/analytics/notifying_units', filters),
+  );
+}
+
+export function getUnitNotificationDelay(
+  filters: SragFilters,
+): Promise<UnitNotificationDelayResponse> {
+  return getApiData<UnitNotificationDelayResponse>(
+    buildAnalyticsUrl('/analytics/unit_notification_delay', filters),
+  );
+}
+
+export function getHospitalStay(filters: SragFilters): Promise<HospitalStayResponse> {
+  return getApiData<HospitalStayResponse>(buildAnalyticsUrl('/analytics/hospital_stay', filters));
+}
+
+export function getVaccineJourney(filters: SragFilters): Promise<VaccineJourneyResponse> {
+  return getApiData<VaccineJourneyResponse>(
+    buildAnalyticsUrl('/analytics/vaccine_journey', filters),
   );
 }

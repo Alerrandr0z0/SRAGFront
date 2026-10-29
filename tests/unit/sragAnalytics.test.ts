@@ -53,4 +53,26 @@ describe('buildAnalyticsUrl', () => {
       '/analytics/imaging_severity',
     );
   });
+
+  it('monta a URL do atraso de notificação com os filtros do dashboard', () => {
+    expect(
+      buildAnalyticsUrl('/analytics/notification_delay', { year: '2025', bairro: 'ALTO' }),
+    ).toBe('/analytics/notification_delay?years=2025&bairros=ALTO');
+  });
+
+  it('monta as URLs dos gráficos do cidadão', () => {
+    expect(buildAnalyticsUrl('/analytics/maternal_outcomes', { year: '2024' })).toBe(
+      '/analytics/maternal_outcomes?years=2024',
+    );
+    expect(buildAnalyticsUrl('/analytics/covid_immunization', {})).toBe(
+      '/analytics/covid_immunization',
+    );
+  });
+
+  it('monta as URLs dos gráficos de unidades de saúde', () => {
+    expect(buildAnalyticsUrl('/analytics/notifying_units', { year: '2025' })).toBe(
+      '/analytics/notifying_units?years=2025',
+    );
+    expect(buildAnalyticsUrl('/analytics/vaccine_journey', {})).toBe('/analytics/vaccine_journey');
+  });
 });

@@ -11,14 +11,21 @@ import type {
   IcuGranularity,
   ImagingFinding,
   LethalityAgeAgentResponse,
+  LabeledCount,
+  MaternalGroup,
+  MaternalOutcomesResponse,
   NosocomialPeriod,
   NosocomialRiskResponse,
+  NotificationDelayBairro,
+  NotificationDelayStatus,
   OddsRatioRow,
   SamplePositivityResponse,
   SamplePositivityRow,
   SeverityByAgePoint,
   SeverityByAgeResponse,
   SignatureCell,
+  StayCurvePoint,
+  UnitDelayRow,
 } from '../../../service/srag/sragAnalytics';
 import type { ChartTheme } from './chartTheme';
 import type { EChartsCoreOption } from './echartsCore';
@@ -977,5 +984,299 @@ export function buildSeverityLethalityOption(
       },
     ],
     series,
+  };
+}
+// Atraso de notificação por bairro — barras horizontais com limite aceitável
+// ---------------------------------------------------------------------------
+
+const DELAY_COLORS: Record<NotificationDelayStatus, string> = {
+  adequado: GREEN,
+  atencao: AMBER,
+  critico: RED,
+};
+
+const formatNumber = (value: number) => String(value).replace('.', ',');
+
+export function notificationDelayTooltip(row: NotificationDelayBairro, limitDays: number): string {
+  return [
+    `<b>${row.bairro}</b>: ${row.total} casos`,
+    `Mediana: <b>${formatNumber(row.median_days)} dias</b> (média ${formatNumber(row.mean_days)})`,
+    `Notificados em até ${limitDays} dias: <b>${formatPercent(row.within_limit_pct)}</b>`,
+  ].join('<br/>');
+}
+
+export function buildNotificationDelayOption(
+  rows: NotificationDelayBairro[],
+  limitDays: number,
+  theme: ChartTheme,
+  labelWidth = 190,
+): EChartsCoreOption {
+  const longest = Math.max(0, ...rows.map((row) => row.median_days));
+
+  return {
+    grid: { left: labelWidth, right: 120, top: 32, bottom: 32 },
+    tooltip: {
+      trigger: 'item',
+      backgroundColor: theme.tooltipBg,
+      borderColor: theme.grid,
+      textStyle: { color: theme.tooltipText },
+      formatter: (raw: unknown) => {
+        const row = (raw as { data?: { row?: NotificationDelayBairro } }).data?.row;
+        return row ? notificationDelayTooltip(row, limitDays) : '';
+      },
+    },
+    xAxis: {
+      type: 'value',
+      min: 0,
+      max: Math.max(limitDays + 3, Math.ceil(longest) + 3),
+      axisLabel: { color: theme.muted, formatter: '{value} d' },
+      splitLine: { lineStyle: { color: theme.grid } },
+    },
+    // inverse: a primeira linha (maior atraso) fica no topo.
+    yAxis: {
+      type: 'category',
+      inverse: true,
+      data: rows.map((row) => row.bairro),
+      axisTick: { show: false },
+      axisLine: { lineStyle: { color: theme.grid } },
+      axisLabel: { color: theme.text, width: labelWidth - 16, overflow: 'truncate' },
+    },
+    series: [
+      {
+        type: 'bar',
+        barMaxWidth: 22,
+        data: rows.map((row) => ({
+          value: row.median_days,
+          row,
+          itemStyle: { color: DELAY_COLORS[row.status] ?? SLATE },
+        })),
+        label: {
+          show: true,
+          position: 'right',
+          color: theme.text,
+          formatter: (raw: unknown) => {
+            const row = (raw as { data: { row: NotificationDelayBairro } }).data.row;
+            return `${formatNumber(row.median_days)} dias (n=${row.total})`;
+          },
+        },
+        markLine: {
+          silent: true,
+          symbol: 'none',
+          lineStyle: { type: 'dashed', width: 2, color: theme.muted },
+          label: {
+            formatter: `Limite aceitável: ${limitDays} dias`,
+            position: 'end',
+            color: theme.muted,
+          },
+          data: [{ xAxis: limitDays }],
+        },
+      },
+    ],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Desfecho por grupo materno — barras empilhadas em 100%
+// ---------------------------------------------------------------------------
+
+export const MATERNAL_BANDS = [
+  { key: 'cure', label: 'Cura sem UTI', color: GREEN, text: '#FFFFFF' },
+  { key: 'icu', label: 'UTI e sobreviveu', color: AMBER, text: '#1C2434' },
+  { key: 'death', label: 'Óbito', color: RED, text: '#FFFFFF' },
+  { key: 'other', label: 'Outro ou em aberto', color: SLATE, text: '#1C2434' },
+] as const;
+
+export function maternalTooltip(group: MaternalGroup, minCases: number): string {
+  const lines = MATERNAL_BANDS.map((band) => {
+    const count = group[band.key];
+    return `${band.label}: <b>${count}</b> (${formatPercent(percentOf(count, group.total))})`;
+  });
+  const warning =
+    group.total < minCases
+      ? ['<i>Poucos casos: o percentual varia muito com 1 paciente a mais ou a menos.</i>']
+      : [];
+  return [`<b>${group.group}</b>: ${group.total} casos`, ...lines, ...warning].join('<br/>');
+}
+
+export function buildMaternalOutcomesOption(
+  data: MaternalOutcomesResponse,
+  theme: ChartTheme,
+): EChartsCoreOption {
+  const groups = data.groups.filter((group) => group.total > 0);
+  const option = buildShareBarsOption(
+    groups,
+    (group) => (group.total < data.min_cases ? `${group.group} *` : group.group),
+    MATERNAL_BANDS,
+    (group) => maternalTooltip(group, data.min_cases),
+    theme,
+  ) as { grid: object };
+  return { ...option, grid: { left: 48, right: 16, top: 44, bottom: 56 } };
+}
+
+// ---------------------------------------------------------------------------
+// Ranking simples — barras horizontais com contagem e percentual
+// ---------------------------------------------------------------------------
+
+export interface RankedBarsConfig {
+  /** Base do percentual: total de casos que responderam à pergunta. */
+  base: number;
+  color?: string;
+  /** `desc` ordena do maior ao menor; `keep` respeita a ordem recebida (etapas). */
+  order?: 'desc' | 'keep';
+  /** Espaço à esquerda para os rótulos longos. */
+  labelWidth?: number;
+}
+
+export function rankedBarsRows(items: LabeledCount[], order: 'desc' | 'keep'): LabeledCount[] {
+  return order === 'desc' ? [...items].sort((a, b) => b.count - a.count) : [...items];
+}
+
+export function rankedBarTooltip(item: LabeledCount, base: number): string {
+  return `<b>${item.label}</b><br/>${item.count.toLocaleString('pt-BR')} casos (${formatPercent(percentOf(item.count, base))})`;
+}
+
+export function buildRankedBarsOption(
+  items: LabeledCount[],
+  theme: ChartTheme,
+  { base, color = BLUE, order = 'desc', labelWidth = 200 }: RankedBarsConfig,
+): EChartsCoreOption {
+  const rows = rankedBarsRows(items, order);
+  return {
+    grid: { left: labelWidth, right: 110, top: 8, bottom: 24 },
+    tooltip: {
+      trigger: 'item',
+      backgroundColor: theme.tooltipBg,
+      borderColor: theme.grid,
+      textStyle: { color: theme.tooltipText },
+      formatter: (raw: unknown) => {
+        const item = (raw as { data?: { item?: LabeledCount } }).data?.item;
+        return item ? rankedBarTooltip(item, base) : '';
+      },
+    },
+    xAxis: {
+      type: 'value',
+      min: 0,
+      axisLabel: { color: theme.muted },
+      splitLine: { lineStyle: { color: theme.grid } },
+    },
+    yAxis: {
+      type: 'category',
+      inverse: true,
+      data: rows.map((row) => row.label),
+      axisTick: { show: false },
+      axisLine: { lineStyle: { color: theme.grid } },
+      axisLabel: { color: theme.text, width: labelWidth - 16, overflow: 'truncate' },
+    },
+    series: [
+      {
+        type: 'bar',
+        barMaxWidth: 26,
+        itemStyle: { color },
+        data: rows.map((item) => ({ value: item.count, item })),
+        label: {
+          show: true,
+          position: 'right',
+          color: theme.text,
+          formatter: (raw: unknown) => {
+            const item = (raw as { data: { item: LabeledCount } }).data.item;
+            return `${item.count.toLocaleString('pt-BR')} (${formatPercent(percentOf(item.count, base))})`;
+          },
+        },
+      },
+    ],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Atraso de notificação por unidade — mesmas barras do atraso por bairro
+// ---------------------------------------------------------------------------
+
+/** O atraso por unidade usa o mesmo gráfico do atraso por bairro: só muda o nome da linha. */
+export function unitDelayAsRows(units: UnitDelayRow[]): NotificationDelayBairro[] {
+  return units.map(({ unit, id_unidade: _id, ...rest }) => ({ ...rest, bairro: unit }));
+}
+
+export function buildUnitDelayOption(
+  units: UnitDelayRow[],
+  limitDays: number,
+  theme: ChartTheme,
+): EChartsCoreOption {
+  return buildNotificationDelayOption(unitDelayAsRows(units), limitDays, theme, 300);
+}
+
+// ---------------------------------------------------------------------------
+// Tempo de internação — quanto já teve alta ou morreu até cada dia
+// ---------------------------------------------------------------------------
+
+export function stayCurveTooltip(point: StayCurvePoint): string {
+  return [
+    `<b>Até o ${point.day}º dia de internação</b>`,
+    `Já tiveram alta: <b>${formatPercent(point.cure_pct)}</b>`,
+    `Morreram: <b>${formatPercent(point.death_pct)}</b>`,
+  ].join('<br/>');
+}
+
+export function buildStayCurveOption(
+  curve: StayCurvePoint[],
+  theme: ChartTheme,
+): EChartsCoreOption {
+  const line = (name: string, color: string, values: number[]) => ({
+    name,
+    type: 'line',
+    showSymbol: false,
+    smooth: false,
+    lineStyle: { width: 3, color },
+    itemStyle: { color },
+    areaStyle: { color, opacity: 0.1 },
+    data: values,
+  });
+  return {
+    legend: {
+      top: 0,
+      data: ['Já tiveram alta', 'Morreram'],
+      textStyle: { color: theme.text },
+    },
+    grid: { left: 56, right: 24, top: 44, bottom: 56 },
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: theme.tooltipBg,
+      borderColor: theme.grid,
+      textStyle: { color: theme.tooltipText },
+      formatter: (raw: unknown) => {
+        const [first] = raw as { dataIndex: number }[];
+        const point = first ? curve[first.dataIndex] : undefined;
+        return point ? stayCurveTooltip(point) : '';
+      },
+    },
+    xAxis: {
+      type: 'category',
+      boundaryGap: false,
+      data: curve.map((point) => point.day),
+      name: 'Dias de internação',
+      nameLocation: 'middle',
+      nameGap: 32,
+      nameTextStyle: { color: theme.muted },
+      axisLabel: { color: theme.muted, interval: 4 },
+      axisLine: { lineStyle: { color: theme.grid } },
+    },
+    yAxis: {
+      type: 'value',
+      min: 0,
+      max: 100,
+      axisLabel: { color: theme.muted, formatter: '{value}%' },
+      splitLine: { lineStyle: { color: theme.grid } },
+    },
+    series: [
+      line(
+        'Já tiveram alta',
+        GREEN,
+        curve.map((point) => point.cure_pct),
+      ),
+      line(
+        'Morreram',
+        RED,
+        curve.map((point) => point.death_pct),
+      ),
+    ],
   };
 }
