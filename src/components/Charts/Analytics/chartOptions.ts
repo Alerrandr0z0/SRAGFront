@@ -1012,9 +1012,16 @@ export function buildNotificationDelayOption(
   labelWidth = 190,
 ): EChartsCoreOption {
   const longest = Math.max(0, ...rows.map((row) => row.median_days));
+  const limitName = `Limite aceitável: ${limitDays} dias`;
 
   return {
-    grid: { left: labelWidth, right: 120, top: 32, bottom: 32 },
+    legend: {
+      top: 0,
+      data: [limitName],
+      textStyle: { color: theme.text },
+    },
+
+    grid: { left: labelWidth, right: 120, top: 44, bottom: 32 },
     tooltip: {
       trigger: 'item',
       backgroundColor: theme.tooltipBg,
@@ -1059,18 +1066,25 @@ export function buildNotificationDelayOption(
             return `${formatNumber(row.median_days)} dias (n=${row.total})`;
           },
         },
+      },
+      {
+        name: limitName,
+        type: 'line',
+        data: [],
+        lineStyle: { type: 'dashed', width: 2, color: theme.muted },
+        itemStyle: { color: theme.muted },
         markLine: {
           silent: true,
           symbol: 'none',
           lineStyle: { type: 'dashed', width: 2, color: theme.muted },
           label: {
-            formatter: `Limite aceitável: ${limitDays} dias`,
+            formatter: 'Limite aceitável: ${limitDays} dias',
             position: 'end',
             color: theme.muted,
           },
-          data: [{ xAxis: limitDays }],
+        data: [{ xAxis: limitDays }]
         },
-      },
+      }
     ],
   };
 }
