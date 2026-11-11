@@ -541,9 +541,11 @@ describe('buildNotificationDelayOption', () => {
 
   it('marca o limite aceitável com uma linha tracejada', () => {
     const option = buildNotificationDelayOption(rows, 7, theme) as Option;
-    const [line] = option.series[0].markLine.data;
+    const limitSeries = option.series[1];
+    const [line] = limitSeries.markLine.data;
+
     expect(line.xAxis).toBe(7);
-    expect(option.series[0].markLine.label.formatter).toBe('Limite aceitável: 7 dias');
+    expect(limitSeries.markLine.label.formatter).toBe('Limite aceitável: 7 dias');
   });
 
   it('deixa folga no eixo para o maior atraso e para o limite', () => {
@@ -683,7 +685,7 @@ describe('atraso por unidade', () => {
     expect(option.series[0].data[0].itemStyle.color).not.toBe(
       option.series[0].data[1].itemStyle.color,
     );
-    expect(option.series[0].markLine.data).toEqual([{ xAxis: 7 }]);
+    expect(option.series[1].markLine.data).toEqual([{ xAxis: 7 }]);
   });
 });
 

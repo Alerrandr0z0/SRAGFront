@@ -1078,8 +1078,7 @@ export function buildNotificationDelayOption(
           symbol: 'none',
           lineStyle: { type: 'dashed', width: 2, color: theme.muted },
           label: {
-            formatter: 'Limite aceitável: ${limitDays} dias',
-            position: 'end',
+            formatter: `Limite aceitável: ${limitDays} dias`,            position: 'end',
             color: theme.muted,
           },
         data: [{ xAxis: limitDays }]
