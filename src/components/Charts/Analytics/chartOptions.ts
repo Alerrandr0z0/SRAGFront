@@ -1016,6 +1016,7 @@ export function buildNotificationDelayOption(
 
   return {
     legend: {
+      select: {[limitName]: false},
       top: 0,
       data: [limitName],
       textStyle: { color: theme.text },
