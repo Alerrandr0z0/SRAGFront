@@ -608,3 +608,79 @@ export function getVaccineJourney(filters: SragFilters): Promise<VaccineJourneyR
     buildAnalyticsUrl('/analytics/vaccine_journey', filters),
   );
 }
+
+// --- Corredor endêmico, perfil de quem morre e antiviral por faixa etária ---
+
+export type EndemicStatus = 'below' | 'expected' | 'elevated' | 'epidemic';
+
+export interface EndemicWeek {
+  week: number;
+  /** null nas semanas ainda sem dados do ano de referência. */
+  cases: number | null;
+  p25: number;
+  median: number;
+  p75: number;
+  /** Limite acima do qual a semana é epidêmica. */
+  alert: number;
+  status: EndemicStatus | null;
+}
+
+export interface EndemicChannelResponse {
+  enough_history: boolean;
+  min_years: number;
+  reference_year: number | null;
+  history_years: number[];
+  current_week: number | null;
+  current_cases: number | null;
+  current_status: EndemicStatus | null;
+  weeks_above: number;
+  weeks: EndemicWeek[];
+}
+
+export interface OutcomeProfile {
+  count: number;
+  median_age: number | null;
+  unvaccinated_pct: number | null;
+  unvaccinated_known: number;
+  risk_factor_pct: number | null;
+  risk_factor_known: number;
+  reliable: boolean;
+}
+
+export interface FatalProfileResponse {
+  deaths: OutcomeProfile | null;
+  survivors: OutcomeProfile | null;
+}
+
+export interface AntiviralAgeBand {
+  key: string;
+  label: string;
+  cases: number;
+  treated: number;
+  median_days: number | null;
+  timely_pct: number | null;
+  untreated_pct: number | null;
+  reliable: boolean;
+}
+
+export interface AntiviralDelayByAgeResponse {
+  timely_days: number;
+  overall: AntiviralAgeBand | null;
+  bands: AntiviralAgeBand[];
+}
+
+export function getEndemicChannel(filters: SragFilters): Promise<EndemicChannelResponse> {
+  return getApiData<EndemicChannelResponse>(
+    buildAnalyticsUrl('/analytics/endemic_channel', filters),
+  );
+}
+
+export function getFatalProfile(filters: SragFilters): Promise<FatalProfileResponse> {
+  return getApiData<FatalProfileResponse>(buildAnalyticsUrl('/analytics/fatal_profile', filters));
+}
+
+export function getAntiviralDelayByAge(filters: SragFilters): Promise<AntiviralDelayByAgeResponse> {
+  return getApiData<AntiviralDelayByAgeResponse>(
+    buildAnalyticsUrl('/analytics/antiviral_delay_by_age', filters),
+  );
+}
