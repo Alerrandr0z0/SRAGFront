@@ -114,10 +114,10 @@ const DadosGerais: React.FC = () => {
   const [hasLoaded, setHasLoaded] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [yearSelected, setYearSelected] = useState<string>(() => {
-    const stored = localStorage.getItem('yearSelected');
-    return stored !== null ? stored : new Date().getFullYear().toString();
-  });
+  // Sem escolha anterior, o filtro de ano começa em "Todos" ('').
+  const [yearSelected, setYearSelected] = useState<string>(
+    () => localStorage.getItem('yearSelected') ?? '',
+  );
   const [agentSelected, setAgentSelected] = useState<string>(() => {
     return localStorage.getItem('agentSelected') || '';
   });
