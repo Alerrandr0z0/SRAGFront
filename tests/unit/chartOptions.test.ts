@@ -320,24 +320,25 @@ describe('buildNosocomialOption', () => {
     expect(bars.map((bar) => bar.itemStyle.color)).toEqual(['#3C50E0', '#DC2626']);
   });
 
-  it('desenha as linhas de média e de limite de alerta', () => {
+    it('desenha a barra de infecção hospitalar e a linha de média, sem limite de alerta', () => {
     const option = buildNosocomialOption(base, theme) as Option;
     expect(option.series.map((serie) => serie.name)).toEqual([
       'Infecção hospitalar',
       'Média dos períodos',
-      'Limite de alerta',
     ]);
-    expect(option.series[2].data).toEqual([40, 40]);
+    expect(option.series[1].data).toEqual([8, 8]);
   });
 
-  it('omite o limite de alerta quando ele não existe', () => {
-    const option = buildNosocomialOption({ ...base, alert_limit_pct: null }, theme) as Option;
-    expect(option.series.map((serie) => serie.name)).not.toContain('Limite de alerta');
+    it('mostra no tooltip o período e a contagem, sem aviso de alerta', () => {
+    const tooltip = nosocomialTooltip(base.periods[1], 'month');
+    expect(tooltip).toContain('fev/24');
+    expect(tooltip).toContain('Infecção hospitalar: <b>12</b> de 20 casos (60,0%)');
+    expect(tooltip).not.toContain('limite de alerta');
   });
 
-  it('avisa no tooltip quando o período passou do limite', () => {
-    expect(nosocomialTooltip(base.periods[1], 'month')).toContain('Acima do limite de alerta');
-    expect(nosocomialTooltip(base.periods[0], 'month')).not.toContain('Acima do limite');
+  it('escreve o trimestre por extenso no tooltip', () => {
+    const quarter = { period: '2022-Q3', known: 53, nosocomial: 4, pct: 7.5, alert: false };
+    expect(nosocomialTooltip(quarter, 'quarter')).toContain('3º trimestre de 2022');
   });
 });
 
