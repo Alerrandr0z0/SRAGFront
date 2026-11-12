@@ -69,14 +69,14 @@ const SintomasSelector: React.FC<SintomasSelectorProps> = ({
         : `${sintomasSelected.length} sintomas selecionados`;
 
   return (
-    <div className="mb-4.5 relative">
+    <div className="relative">
       <button
         ref={trigger}
         type="button"
         onClick={() => setOpen(!open)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className={`relative z-20 w-full min-w-[220px] appearance-none rounded border border-stroke bg-transparent py-3 px-5 text-left outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary mr-4 ${
+        className={`relative z-20 w-full appearance-none truncate rounded border border-stroke bg-transparent py-2.5 pl-3 pr-8 text-sm text-left outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary ${
           sintomasSelected.length > 0 ? 'text-black dark:text-white' : ''
         }`}
       >
@@ -88,7 +88,7 @@ const SintomasSelector: React.FC<SintomasSelectorProps> = ({
           ref={dropdown}
           role="listbox"
           aria-multiselectable="true"
-          className="absolute z-30 mt-1 w-full max-h-64 overflow-y-auto rounded border border-stroke bg-white p-2 shadow-default dark:border-strokedark dark:bg-boxdark"
+          className="absolute right-0 z-30 mt-1 w-max min-w-full max-w-[min(20rem,90vw)] max-h-64 overflow-y-auto rounded border border-stroke bg-white p-2 shadow-default dark:border-strokedark dark:bg-boxdark"
         >
           {sintomasSelected.length > 0 && (
             <button

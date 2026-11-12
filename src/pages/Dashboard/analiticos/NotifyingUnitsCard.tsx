@@ -143,7 +143,7 @@ export default function NotifyingUnitsCard({ filters }: { filters: SragFilters }
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="w-full min-w-[34rem] text-left text-sm">
               <thead>
                 <tr className="border-b border-stroke text-xs uppercase text-body dark:border-strokedark dark:text-bodydark">
                   {COLUMNS.map((column) => (
@@ -180,7 +180,9 @@ export default function NotifyingUnitsCard({ filters }: { filters: SragFilters }
                     key={unit.id_unidade}
                     className="border-b border-stroke last:border-0 dark:border-strokedark"
                   >
-                    <td className="px-3 py-2 text-black dark:text-white">{unit.name}</td>
+                    <td className="min-w-[11rem] px-3 py-2 text-black dark:text-white">
+                      {unit.name}
+                    </td>
                     <td className="px-3 py-2 text-right font-medium text-black dark:text-white">
                       {formatCount(unit.total)}
                     </td>
