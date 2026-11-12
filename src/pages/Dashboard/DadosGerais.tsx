@@ -8,6 +8,7 @@ import AgentSelector from '../../components/Forms/SelectGroup/AgentSelector';
 import BairroSelector from '../../components/Forms/SelectGroup/BairroSelector';
 import BaseAnaliseSelector from '../../components/Forms/SelectGroup/BaseAnaliseSelector';
 import ClassiSelector from '../../components/Forms/SelectGroup/ClassiSelector';
+import FilterBar from '../../components/Forms/SelectGroup/FilterBar';
 import GravidadeSelector from '../../components/Forms/SelectGroup/GravidadeSelector';
 import SintomasSelector from '../../components/Forms/SelectGroup/SintomasSelector';
 import YearSelector from '../../components/Forms/SelectGroup/YearSelector';
@@ -286,7 +287,7 @@ const DadosGerais: React.FC = () => {
   return (
     <DefaultLayout>
       <h1 className="sr-only">Vigilância</h1>
-      <div className="flex flex-wrap justify-end gap-x-2 gap-y-2 items-end">
+      <FilterBar>
         <BairroSelector
           bairroSelected={bairroSelected}
           setBairroSelected={handleBairroChange}
@@ -312,7 +313,7 @@ const DadosGerais: React.FC = () => {
           sintomasSelected={sintomasSelected}
           setSintomasSelected={setSintomasSelected}
         />
-      </div>
+      </FilterBar>
 
       <div
         className={`relative transition-opacity duration-300 ${loading ? 'opacity-50' : 'opacity-100'}`}

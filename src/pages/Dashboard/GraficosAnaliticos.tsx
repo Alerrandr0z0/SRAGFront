@@ -4,6 +4,7 @@ import AgentSelector from '../../components/Forms/SelectGroup/AgentSelector';
 import BairroSelector from '../../components/Forms/SelectGroup/BairroSelector';
 import BaseAnaliseSelector from '../../components/Forms/SelectGroup/BaseAnaliseSelector';
 import ClassiSelector from '../../components/Forms/SelectGroup/ClassiSelector';
+import FilterBar from '../../components/Forms/SelectGroup/FilterBar';
 import GravidadeSelector from '../../components/Forms/SelectGroup/GravidadeSelector';
 import SintomasSelector from '../../components/Forms/SelectGroup/SintomasSelector';
 import YearSelector from '../../components/Forms/SelectGroup/YearSelector';
@@ -93,7 +94,7 @@ const GraficosAnaliticos: React.FC = () => {
   return (
     <DefaultLayout>
       <h1 className="sr-only">Gráficos analíticos</h1>
-      <div className="flex flex-wrap justify-end gap-x-2 gap-y-2 items-end">
+      <FilterBar>
         <BairroSelector
           bairroSelected={bairroSelected}
           setBairroSelected={setBairroSelected}
@@ -119,7 +120,7 @@ const GraficosAnaliticos: React.FC = () => {
           sintomasSelected={sintomasSelected}
           setSintomasSelected={setSintomasSelected}
         />
-      </div>
+      </FilterBar>
 
       <div className="mt-6">
         <SectionTabs sections={SECTIONS} active={active} onChange={changeSection} />
