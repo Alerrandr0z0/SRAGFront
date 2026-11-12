@@ -154,10 +154,10 @@ function bandTooltip(detail: number[][], seriesName: string) {
 }
 
 const Sociodemografica: React.FC = () => {
-  const [yearSelected, setYearSelected] = useState<string>(() => {
-    const stored = localStorage.getItem('yearSelected');
-    return stored !== null ? stored : new Date().getFullYear().toString();
-  });
+  // Sem escolha anterior, o filtro de ano começa em "Todos" ('').
+  const [yearSelected, setYearSelected] = useState<string>(
+    () => localStorage.getItem('yearSelected') ?? '',
+  );
   const [agentSelected, setAgentSelected] = useState('');
   const [classiSelected, setClassiSelected] = useState<string>(() => {
     return localStorage.getItem('classiSelected') || '';

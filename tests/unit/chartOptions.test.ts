@@ -27,6 +27,8 @@ import {
   nosocomialTooltip,
   notificationDelayTooltip,
   oddsRatioColor,
+  oddsRatioLabel,
+  oddsRatioSentence,
   percentOf,
   prepareOddsRatio,
   rankedBarTooltip,
@@ -108,6 +110,28 @@ describe('oddsRatioColor', () => {
     expect(oddsRatioColor(row({ ci_lower: 1.5 }))).toBe('#DC2626');
     expect(oddsRatioColor(row({ odds_ratio: 0.4, ci_lower: 0.1, ci_upper: 0.8 }))).toBe('#3C50E0');
     expect(oddsRatioColor(row({ ci_lower: 0.5, ci_upper: 3 }))).toBe('#94A3B8');
+  });
+});
+
+describe('oddsRatioLabel / oddsRatioSentence', () => {
+  it('escreve quantas vezes a chance de óbito é maior', () => {
+    expect(oddsRatioLabel(row({ odds_ratio: 8 }))).toBe('×8');
+    expect(oddsRatioLabel(row({ odds_ratio: 2.345 }))).toBe('×2,3');
+    expect(oddsRatioSentence(row({ odds_ratio: 8, ci_lower: 1.87 }))).toBe(
+      'Chance de óbito 8 vezes maior que em quem não tem o fator',
+    );
+  });
+
+  it('descreve fator protetor em percentual', () => {
+    expect(oddsRatioSentence(row({ odds_ratio: 0.4, ci_lower: 0.1, ci_upper: 0.8 }))).toBe(
+      'Chance de óbito 60% menor que em quem não tem o fator',
+    );
+  });
+
+  it('não afirma diferença quando o intervalo inclui 1', () => {
+    expect(oddsRatioSentence(row({ odds_ratio: 3, ci_lower: 0.5, ci_upper: 9 }))).toMatch(
+      /Sem diferença/,
+    );
   });
 });
 

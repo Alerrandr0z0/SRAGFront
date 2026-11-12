@@ -9,13 +9,14 @@ interface BaseAnaliseSelectorProps {
 
 // Filtro "Base de análise": troca o universo de linhas usado por TODOS os
 // cards/gráficos/mapa das duas páginas (Vigilância e Sociodemográfico).
-// - notificados (default, vazio): todos os casos, sem filtro extra.
+// - todos (default, vazio): universo completo (notificados, confirmados e óbitos),
+//   sem filtro extra. O Back trata '' e 'notificados' do mesmo jeito.
 // - confirmados: CLASSI_FIN ∈ {1, 5} — classificação final etiológica
 //   (Influenza ou COVID-19). Importante: NÃO é confirmação laboratorial
 //   isolada, por isso o rótulo deixa isso explícito.
 // - obitos: EVOLUCAO == 2.
 const BASES = [
-  { value: '', label: 'Notificados' },
+  { value: '', label: 'Todos os casos' },
   { value: 'confirmados', label: 'Confirmados (classificação final)' },
   { value: 'obitos', label: 'Óbitos' },
 ];
@@ -46,7 +47,7 @@ const BaseAnaliseSelector: React.FC<BaseAnaliseSelectorProps> = ({
           ))}
         </select>
         <span className="absolute right-2 top-1/2 z-30 -translate-y-1/2">
-          <HelpTooltip text='"Confirmados" usa a classificação final etiológica (CLASSI_FIN), não confirmação laboratorial isolada.' />
+          <HelpTooltip text='"Todos os casos" reúne notificados, confirmados e óbitos. "Confirmados" usa a classificação final etiológica (CLASSI_FIN), não confirmação laboratorial isolada.' />
         </span>
       </div>
     </div>

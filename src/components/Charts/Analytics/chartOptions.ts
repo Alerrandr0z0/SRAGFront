@@ -111,7 +111,7 @@ export function buildSankeyOption(
 }
 
 // ---------------------------------------------------------------------------
-// Forest plot — Odds Ratio das comorbidades
+// Odds Ratio das comorbidades — barras a partir de ×1 (sem associação)
 // ---------------------------------------------------------------------------
 
 export interface OddsRatioPlot {
@@ -150,10 +150,30 @@ export function oddsRatioColor(row: OddsRatioRow): string {
 interface CustomApi {
   value(dimension: number): number;
   coord(point: [number, number]): [number, number];
+  size(dataSize: [number, number]): [number, number];
 }
 
 interface CustomParams {
   coordSys: { y: number; height: number };
+}
+
+const oneDecimal = (value: number) => value.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+
+/** Rótulo curto da barra: "×8" (quantas vezes a chance de óbito é maior ou menor). */
+export function oddsRatioLabel(row: OddsRatioRow): string {
+  return `×${oneDecimal(row.odds_ratio)}`;
+}
+
+/** Frase em linguagem comum para o tooltip. */
+export function oddsRatioSentence(row: OddsRatioRow): string {
+  if (row.ci_lower <= 1 && row.ci_upper >= 1) {
+    return 'Sem diferença estatisticamente comprovada na chance de óbito';
+  }
+  if (row.odds_ratio >= 1) {
+    return `Chance de óbito ${oneDecimal(row.odds_ratio)} vezes maior que em quem não tem o fator`;
+  }
+  const lower = Math.round((1 - row.odds_ratio) * 100);
+  return `Chance de óbito ${lower}% menor que em quem não tem o fator`;
 }
 
 function oddsTooltip(params: { data?: { row?: OddsRatioRow } }): string {
@@ -161,6 +181,7 @@ function oddsTooltip(params: { data?: { row?: OddsRatioRow } }): string {
   if (!row) return '';
   return [
     `<b>${row.name}</b>`,
+    oddsRatioSentence(row),
     `OR ${row.odds_ratio} (IC 95%: ${row.ci_lower}–${row.ci_upper})`,
     `${row.value} casos (${row.prevalence}% da base)`,
     `Letalidade: ${row.lethality}% (${row.deaths} óbitos)`,
@@ -172,7 +193,7 @@ export function buildOddsRatioOption(plot: OddsRatioPlot, theme: ChartTheme): EC
   const colors = plot.rows.map(oddsRatioColor);
 
   return {
-    grid: { left: 140, right: 28, top: 16, bottom: 48 },
+    grid: { left: 112, right: 48, top: 16, bottom: 48 },
     tooltip: {
       trigger: 'item',
       backgroundColor: theme.tooltipBg,
@@ -184,7 +205,7 @@ export function buildOddsRatioOption(plot: OddsRatioPlot, theme: ChartTheme): EC
       type: 'log',
       min: plot.axisMin,
       max: plot.axisMax,
-      name: 'Odds Ratio (escala logarítmica)',
+      name: 'Chance de óbito (× vezes) — escala log',
       nameLocation: 'middle',
       nameGap: 30,
       nameTextStyle: { color: theme.muted },
@@ -233,22 +254,37 @@ export function buildOddsRatioOption(plot: OddsRatioPlot, theme: ChartTheme): EC
         renderItem: (_params: unknown, api: unknown) => {
           const customApi = api as CustomApi;
           const index = customApi.value(0);
-          const middle = customApi.coord([customApi.value(1), index]);
-          const low = customApi.coord([customApi.value(2), index]);
-          const high = customApi.coord([customApi.value(3), index]);
+          const row = plot.rows[index];
+          const end = customApi.coord([customApi.value(1), index]);
+          const origin = customApi.coord([1, index]);
           const color = colors[index];
+          const band = customApi.size([0, 1])[1] * 0.6;
+
           return {
             type: 'group',
             children: [
               {
-                type: 'line',
-                shape: { x1: low[0], y1: low[1], x2: high[0], y2: high[1] },
-                style: { stroke: color, lineWidth: 2 },
+                type: 'rect',
+                shape: {
+                  x: Math.min(origin[0], end[0]),
+                  y: origin[1] - band / 2,
+                  width: Math.max(2, Math.abs(end[0] - origin[0])),
+                  height: band,
+                },
+                style: { fill: color },
               },
               {
-                type: 'circle',
-                shape: { cx: middle[0], cy: middle[1], r: 5 },
-                style: { fill: color },
+                type: 'text',
+                style: {
+                  text: oddsRatioLabel(row),
+                  // Sempre à direita da barra ou da linha ×1, para não colidir com os nomes.
+                  x: Math.max(end[0], origin[0]) + 6,
+                  y: origin[1],
+                  fill: theme.text,
+                  fontWeight: 'bold',
+                  textAlign: 'left',
+                  textVerticalAlign: 'middle',
+                },
               },
             ],
           };

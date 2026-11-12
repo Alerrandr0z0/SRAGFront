@@ -23,21 +23,21 @@ export default function OddsRatioCard({ filters }: { filters: SragFilters }) {
   return (
     <ChartCard
       title="Associação de comorbidades com o óbito (Odds Ratio)"
-      subtitle="Quanto cada fator de risco aumenta a chance de óbito, entre os casos com desfecho conhecido."
-      help="OR > 1 indica associação com o óbito; OR < 1, efeito protetor. A barra é o intervalo de confiança de 95%: quando ele cruza a linha tracejada (OR = 1), a diferença não é estatisticamente significativa."
+      subtitle="Quantas vezes a chance de óbito é maior em quem tem cada fator, comparado a quem não tem (casos com desfecho conhecido)."
+      help="×1 (linha tracejada) significa nenhuma diferença. Barra para a direita: maior chance de óbito (×3 = três vezes maior); para a esquerda: menor chance. Cinza: a diferença pode ser acaso (o intervalo de confiança de 95% inclui ×1). Passe o mouse para ver o intervalo."
       status={toCardStatus(slice, (data) => prepareOddsRatio(data).rows.length === 0)}
       refreshing={isRefreshing(slice)}
     >
       <EChartView option={option} height={height} ariaLabel="Odds Ratio por fator de risco" />
       <p className="mt-2 flex flex-wrap gap-x-4 text-xs text-body dark:text-bodydark">
         <span>
-          <span className="text-[#DC2626]">●</span> Associado ao óbito
+          <span className="text-[#DC2626]">●</span> Maior chance de óbito
         </span>
         <span>
-          <span className="text-[#3C50E0]">●</span> Protetor
+          <span className="text-[#3C50E0]">●</span> Menor chance de óbito
         </span>
         <span>
-          <span className="text-[#94A3B8]">●</span> Sem significância estatística
+          <span className="text-[#94A3B8]">●</span> Diferença pode ser acaso
         </span>
       </p>
       {plot && plot.omitted.length > 0 && (
