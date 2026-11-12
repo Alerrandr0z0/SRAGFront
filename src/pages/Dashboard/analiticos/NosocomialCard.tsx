@@ -76,13 +76,6 @@ export default function NosocomialCard({ filters }: { filters: SragFilters }) {
               agrupar por um período maior.
             </p>
           )}
-          <p className="mt-2 text-xs text-body dark:text-bodydark">
-            {data.periods.length > 0 && data.alert_limit_pct === null
-              ? 'Limite de alerta indisponível: precisa de 12 ou mais períodos (agrupe por trimestre ou mês). '
-              : ''}
-            Períodos pela data dos primeiros sintomas; n = casos com origem informada. Períodos com
-            menos de {data.min_cases} casos não são exibidos.
-          </p>
         </>
       )}
     </ChartCard>

@@ -509,12 +509,19 @@ export function buildDiagnosticMethodsOption(
 // ---------------------------------------------------------------------------
 
 export function nosocomialTooltip(period: NosocomialPeriod, granularity: IcuGranularity): string {
-  const lines = [
-    `<b>${formatPeriod(granularity, period.period)}</b>`,
+  return [
+    `<b>${formatPeriodLong(granularity, period.period)}</b>`,
     `Infecção hospitalar: <b>${period.nosocomial}</b> de ${period.known} casos (${formatPercent(period.pct)})`,
-  ];
-  if (period.alert) lines.push('<b>Acima do limite de alerta</b>');
-  return lines.join('<br/>');
+  ].join('<br/>');
+}
+
+/** "2024-Q1" → "1º trimestre de 2024". Outras granularidades seguem o formatPeriod. */
+function formatPeriodLong(granularity: IcuGranularity, key: string): string {
+  if (granularity === 'quarter') {
+    const [year, quarter] = key.split('-Q');
+    return `${quarter}º trimestre de ${year}`;
+  }
+  return formatPeriod(granularity, key);
 }
 
 const referenceLine = (name: string, value: number, count: number, color: string) => ({
@@ -550,9 +557,6 @@ export function buildNosocomialOption(
   ];
   if (data.mean_pct !== null) {
     series.push(referenceLine('Média dos períodos', data.mean_pct, periods.length, theme.muted));
-  }
-  if (data.alert_limit_pct !== null) {
-    series.push(referenceLine('Limite de alerta', data.alert_limit_pct, periods.length, RED));
   }
 
   return {
@@ -895,9 +899,10 @@ export function severityLethalityTooltip(
     .join('<br/>');
 }
 
-export function buildSeverityLethalityOption(
+// Gravidade por faixa etária
+
+export function buildSeverityOption(
   severity: SeverityByAgeResponse,
-  lethality: LethalityAgeAgentResponse | null,
   theme: ChartTheme,
 ): EChartsCoreOption {
   const ageGroups = severity.map((row) => row.age_group);
@@ -911,34 +916,7 @@ export function buildSeverityLethalityOption(
     data: severity.map((row) => Math.round(row.total_cases * (severityRates(row)[band.key] / 100))),
   }));
 
-  // Uma linha de CFR por agente; agentes sem nenhum valor > 0 ficam de fora.
-  const lineSeries = (lethality?.agents ?? []).flatMap((agent, agentIndex) => {
-    const points = ageGroups.map((ageGroup) => {
-      const bandIndex = lethality?.age_bands.indexOf(ageGroup) ?? -1;
-      // null = poucos casos para estimar: a linha fica com lacuna em vez de cair a 0%.
-      return bandIndex === -1 ? null : (lethality?.matrix[agentIndex]?.[bandIndex] ?? null);
-    });
-    if (!points.some((value) => value !== null && value > 0)) return [];
-
-    const color = AGENT_COLORS[agent] ?? theme.muted;
-    return [
-      {
-        name: `${agent} (CFR)`,
-        type: 'line',
-        yAxisIndex: 1,
-        z: 10,
-        smooth: true,
-        symbol: 'circle',
-        symbolSize: 6,
-        lineStyle: { width: 2, color },
-        itemStyle: { color },
-        data: points,
-      },
-    ];
-  });
-
-  const series = [...barSeries, ...lineSeries];
-  const axisLine = { show: true, lineStyle: { color: theme.grid } };
+  const series = [...barSeries];
 
   return {
     legend: {
@@ -960,7 +938,6 @@ export function buildSeverityLethalityOption(
       type: 'category',
       data: ageGroups,
       axisTick: { show: false },
-      axisLine,
       axisLabel: { color: theme.muted, rotate: 25 },
     },
     yAxis: [
@@ -968,7 +945,6 @@ export function buildSeverityLethalityOption(
         type: 'value',
         name: 'Volume de casos',
         nameTextStyle: { color: theme.muted },
-        axisLine,
         axisLabel: { color: theme.muted },
         splitLine: { lineStyle: { color: theme.grid, type: 'dashed' } },
       },
@@ -978,13 +954,122 @@ export function buildSeverityLethalityOption(
         nameTextStyle: { color: theme.muted },
         min: 0,
         max: 100,
-        axisLine,
         axisLabel: { color: theme.muted, formatter: '{value}%' },
         splitLine: { show: false },
       },
     ],
     series,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Letalidade por faixa etária — um gráfico de barras pequeno para cada agente
+// ---------------------------------------------------------------------------
+
+/** Agentes que ganham um gráfico, na ordem em que aparecem lado a lado. */
+export const LETHALITY_AGENTS = [
+  'COVID-19',
+  'Influenza',
+  'VSR',
+  'Outros Vírus',
+  'Não Especificada',
+] as const;
+
+export interface LethalityPanel {
+  agent: string;
+  color: string;
+  /** null quando o agente não tem nenhum caso com desfecho nos filtros atuais. */
+  option: EChartsCoreOption | null;
+}
+
+interface LethalityTooltipParam {
+  name: string;
+  marker: string;
+  value: number | null;
+}
+
+/** "0 anos" → "0", "1-4 anos" → "1-4", "80+ anos" → "80+": cabe no eixo de um gráfico pequeno. */
+const shortBand = (band: string) => band.replace(/ anos?$/, '');
+
+export function lethalityPanelTooltip(agent: string, params: LethalityTooltipParam[]): string {
+  const [first] = params;
+  if (!first) return '';
+  return [
+    `<b>${first.name} anos</b>`,
+    `${first.marker} ${agent}: <b>${formatPercent(Number(first.value ?? 0))}</b>`,
+  ].join('<br/>');
+}
+
+/** Barras de CFR (%) de um único agente, uma por faixa etária. Eixo fixo em 0–100%. */
+export function buildLethalityAgentOption(
+  agent: string,
+  ageBands: string[],
+  values: number[],
+  color: string,
+  theme: ChartTheme,
+): EChartsCoreOption {
+  return {
+    grid: { left: 4, right: 8, top: 12, bottom: 4, containLabel: true },
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      backgroundColor: theme.tooltipBg,
+      borderColor: theme.grid,
+      textStyle: { color: theme.tooltipText },
+      formatter: (raw: unknown) => lethalityPanelTooltip(agent, raw as LethalityTooltipParam[]),
+    },
+    xAxis: {
+      type: 'category',
+      data: ageBands,
+      axisTick: { show: false },
+      axisLine: { lineStyle: { color: theme.grid } },
+      axisLabel: {
+        color: theme.muted,
+        fontSize: 10,
+        interval: 0,
+        rotate: 60,
+        formatter: shortBand,
+      },
+    },
+    yAxis: {
+      type: 'value',
+      min: 0,
+      max: 100,
+      axisLabel: { color: theme.muted, fontSize: 10, formatter: '{value}%' },
+      splitLine: { lineStyle: { color: theme.grid, type: 'dashed' } },
+    },
+    series: [
+      {
+        name: agent,
+        type: 'bar',
+        barMaxWidth: 14,
+        itemStyle: { color, borderRadius: [2, 2, 0, 0] },
+        data: values,
+      },
+    ],
+  };
+}
+
+/** Um painel por agente de LETHALITY_AGENTS; agente sem casos nos filtros vem com option null. */
+export function buildLethalityPanels(
+  lethality: LethalityAgeAgentResponse | null,
+  theme: ChartTheme,
+): LethalityPanel[] {
+  if (!lethality) return [];
+
+  return LETHALITY_AGENTS.map((agent) => {
+    const index = lethality.agents.indexOf(agent);
+    const row = index === -1 ? undefined : lethality.matrix[index];
+    const color = AGENT_COLORS[agent] ?? theme.muted;
+    const values = row?.map((value) => value ?? 0);
+    return {
+      agent,
+      color,
+      option: values
+        ? buildLethalityAgentOption(agent, lethality.age_bands, values, color, theme)
+        : null,
+    };
+  });
 }
 // Atraso de notificação por bairro — barras horizontais com limite aceitável
 // ---------------------------------------------------------------------------
@@ -1078,10 +1163,10 @@ export function buildNotificationDelayOption(
           symbol: 'none',
           lineStyle: { type: 'dashed', width: 2, color: theme.muted },
           label: {
-            formatter: `Limite aceitável: ${limitDays} dias`,            position: 'end',
+            formatter: `Limite aceitável: ${limitDays} dias`, position: 'end',
             color: theme.muted,
           },
-        data: [{ xAxis: limitDays }]
+          data: [{ xAxis: limitDays }]
         },
       }
     ],
