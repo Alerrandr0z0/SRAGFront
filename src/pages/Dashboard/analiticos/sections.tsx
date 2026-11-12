@@ -1,6 +1,9 @@
 import type { SragFilters } from '../../../service/srag/sragFilters';
 import AnimalContactCard from './AnimalContactCard';
+import AntiviralByAgeCard from './AntiviralByAgeCard';
 import AntiviralCard from './AntiviralCard';
+import EndemicChannelCard from './EndemicChannelCard';
+import FatalProfileCard from './FatalProfileCard';
 import CovidImmunizationCard from './CovidImmunizationCard';
 import DiagnosticLethalityCard from './DiagnosticLethalityCard';
 import DiagnosticMethodsCard from './DiagnosticMethodsCard';
@@ -71,6 +74,7 @@ export function SectionContent({ id, filters }: { id: SectionId; filters: SragFi
     case 'vigilancia':
       return (
         <>
+          <EndemicChannelCard filters={filters} />
           <DiagnosticMethodsCard filters={filters} />
           <DiagnosticLethalityCard filters={filters} />
           <NosocomialCard filters={filters} />
@@ -85,6 +89,7 @@ export function SectionContent({ id, filters }: { id: SectionId; filters: SragFi
           <LabPerformanceCard filters={filters} />
           <SamplePositivityCard filters={filters} />
           <AntiviralCard filters={filters} />
+          <AntiviralByAgeCard filters={filters} />
           <ImagingCard filters={filters} />
         </>
       );
@@ -105,6 +110,7 @@ export function SectionContent({ id, filters }: { id: SectionId; filters: SragFi
           <SeverityCascadeCard filters={filters} />
           <WarningSignsCard filters={filters} />
           <RiskFactorLoadCard filters={filters} />
+          <FatalProfileCard filters={filters} />
           <SymptomsByAgentCard filters={filters} />
         </>
       );

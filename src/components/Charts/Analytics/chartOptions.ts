@@ -5,6 +5,8 @@ import type {
   DiagnosticLethalityResponse,
   DiagnosticMethodsPeriod,
   DiagnosticMethodsResponse,
+  EndemicChannelResponse,
+  EndemicWeek,
   IcuAccessPeriod,
   IcuAccessResponse,
   IcuGranularity,
@@ -1162,6 +1164,133 @@ export function buildStayCurveOption(
         RED,
         curve.map((point) => point.death_pct),
       ),
+    ],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Corredor endêmico — casos da semana contra a faixa esperada dos anos anteriores
+// ---------------------------------------------------------------------------
+
+const ENDEMIC_STATUS_TEXT: Record<string, string> = {
+  below: 'abaixo do esperado',
+  expected: 'dentro do esperado',
+  elevated: 'acima do esperado',
+  epidemic: 'em nível epidêmico',
+};
+
+export function endemicTooltip(week: EndemicWeek, referenceYear: number | null): string {
+  const lines = [`<b>Semana epidemiológica ${week.week}</b>`];
+  if (week.cases !== null) {
+    const status = week.status ? ` — ${ENDEMIC_STATUS_TEXT[week.status]}` : '';
+    lines.push(`${referenceYear ?? 'Ano atual'}: <b>${week.cases}</b> casos${status}`);
+  }
+  lines.push(
+    `Esperado: ${week.p25.toLocaleString('pt-BR')} a ${week.p75.toLocaleString('pt-BR')} (mediana ${week.median.toLocaleString('pt-BR')})`,
+    `Alerta acima de ${week.alert.toLocaleString('pt-BR')} casos`,
+  );
+  return lines.join('<br/>');
+}
+
+const bandSeries = (
+  name: string,
+  stack: string,
+  data: number[],
+  color: string,
+  opacity: number,
+) => ({
+  name,
+  type: 'line',
+  stack,
+  symbol: 'none',
+  silent: true,
+  lineStyle: { width: 0 },
+  itemStyle: { color },
+  areaStyle: { color, opacity },
+  data,
+});
+
+export function buildEndemicChannelOption(
+  data: EndemicChannelResponse,
+  theme: ChartTheme,
+): EChartsCoreOption {
+  const { weeks } = data;
+  const referenceName = `Casos em ${data.reference_year}`;
+  const names = ['Faixa esperada', 'Zona de alerta', 'Mediana histórica', referenceName];
+  return {
+    legend: { top: 0, data: names, textStyle: { color: theme.text } },
+    grid: { left: 48, right: 16, top: 44, bottom: 40 },
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'line' },
+      backgroundColor: theme.tooltipBg,
+      borderColor: theme.grid,
+      textStyle: { color: theme.tooltipText },
+      formatter: (raw: unknown) => {
+        const [first] = raw as { dataIndex: number }[];
+        const week = first ? weeks[first.dataIndex] : undefined;
+        return week ? endemicTooltip(week, data.reference_year) : '';
+      },
+    },
+    xAxis: {
+      type: 'category',
+      name: 'Semana epidemiológica',
+      nameLocation: 'middle',
+      nameGap: 26,
+      nameTextStyle: { color: theme.muted },
+      data: weeks.map((week) => week.week),
+      boundaryGap: false,
+      axisTick: { show: false },
+      axisLine: { lineStyle: { color: theme.grid } },
+      axisLabel: { color: theme.muted, interval: 3 },
+    },
+    yAxis: {
+      type: 'value',
+      min: 0,
+      axisLabel: { color: theme.muted },
+      splitLine: { lineStyle: { color: theme.grid } },
+    },
+    series: [
+      {
+        name: 'base',
+        type: 'line',
+        stack: 'corredor',
+        symbol: 'none',
+        silent: true,
+        lineStyle: { width: 0 },
+        data: weeks.map((week) => week.p25),
+      },
+      bandSeries(
+        'Faixa esperada',
+        'corredor',
+        weeks.map((week) => week.p75 - week.p25),
+        GREEN,
+        0.3,
+      ),
+      bandSeries(
+        'Zona de alerta',
+        'corredor',
+        weeks.map((week) => week.alert - week.p75),
+        AMBER,
+        0.3,
+      ),
+      {
+        name: 'Mediana histórica',
+        type: 'line',
+        symbol: 'none',
+        silent: true,
+        lineStyle: { type: 'dashed', width: 1.5, color: theme.muted },
+        itemStyle: { color: theme.muted },
+        data: weeks.map((week) => week.median),
+      },
+      {
+        name: referenceName,
+        type: 'line',
+        symbolSize: 5,
+        lineStyle: { width: 2.5, color: BLUE },
+        itemStyle: { color: BLUE },
+        data: weeks.map((week) => week.cases),
+      },
     ],
   };
 }
