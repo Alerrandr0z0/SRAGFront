@@ -4,8 +4,6 @@ export interface ChartTheme {
   grid: string;
   tooltipBg: string;
   tooltipText: string;
-  heatLow: string;
-  heatHigh: string;
 }
 
 export function chartTheme(isDark: boolean): ChartTheme {
@@ -16,8 +14,6 @@ export function chartTheme(isDark: boolean): ChartTheme {
       grid: '#2E3A47',
       tooltipBg: '#24303F',
       tooltipText: '#DEE4EE',
-      heatLow: '#1C2434',
-      heatHigh: '#3C50E0',
     };
   }
   return {
@@ -26,7 +22,5 @@ export function chartTheme(isDark: boolean): ChartTheme {
     grid: '#E2E8F0',
     tooltipBg: '#FFFFFF',
     tooltipText: '#1C2434',
-    heatLow: '#EFF4FB',
-    heatHigh: '#3C50E0',
   };
 }

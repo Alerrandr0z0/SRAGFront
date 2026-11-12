@@ -4,7 +4,6 @@ import AntiviralCard from './AntiviralCard';
 import CovidImmunizationCard from './CovidImmunizationCard';
 import DiagnosticLethalityCard from './DiagnosticLethalityCard';
 import DiagnosticMethodsCard from './DiagnosticMethodsCard';
-import FlowCard from './FlowCard';
 import HospitalStayCard from './HospitalStayCard';
 import IcuAccessCard from './IcuAccessCard';
 import ImagingCard from './ImagingCard';
@@ -14,14 +13,16 @@ import NosocomialCard from './NosocomialCard';
 import NotificationDelayCard from './NotificationDelayCard';
 import NotifyingUnitsCard from './NotifyingUnitsCard';
 import OccupationCard from './OccupationCard';
-import OddsRatioCard from './OddsRatioCard';
+import RiskFactorLoadCard from './RiskFactorLoadCard';
 import SamplePositivityCard from './SamplePositivityCard';
 import type { TabSection } from './SectionTabs';
-import SignatureCard from './SignatureCard';
+import SeverityCascadeCard from './SeverityCascadeCard';
 import SeverityLethalityAgeCard from './SeverityAgeCard';
 import LethalityAgeCard from './LethalityAgeCard';
+import SymptomsByAgentCard from './SymptomsByAgentCard';
 import UnitDelayCard from './UnitDelayCard';
 import VaccineJourneyCard from './VaccineJourneyCard';
+import WarningSignsCard from './WarningSignsCard';
 
 export const SECTIONS = [
   {
@@ -46,12 +47,13 @@ export const SECTIONS = [
     id: 'unidades',
     label: 'Unid. Saúde',
     description:
-      'Quais unidades notificam mais, se notificam a tempo, quanto tempo os pacientes ficam internados e como a vacinação aparece na jornada. O caminho do paciente (Sankey) fica na aba Perfil clínico.',
+      'Quais unidades notificam mais, se notificam a tempo, quanto tempo os pacientes ficam internados e como a vacinação aparece na jornada. A gravidade dos casos fica na aba Perfil clínico.',
   },
   {
     id: 'clinico',
     label: 'Perfil clínico',
-    description: 'O caminho do paciente da internação ao desfecho e como cada agente se manifesta.',
+    description:
+      'Quão grave é o quadro: quantos casos internam e vão à UTI, quais sinais e fatores de risco aumentam a letalidade e o que diferencia cada agente.',
   },
   {
     id: 'cidadao',
@@ -73,9 +75,8 @@ export function SectionContent({ id, filters }: { id: SectionId; filters: SragFi
           <DiagnosticLethalityCard filters={filters} />
           <NosocomialCard filters={filters} />
           <IcuAccessCard filters={filters} />
-          <OddsRatioCard filters={filters} />
           <SeverityLethalityAgeCard filters={filters} />
-          <LethalityAgeCard filters={filters}/>
+          <LethalityAgeCard filters={filters} />
         </>
       );
     case 'laboratorio':
@@ -101,8 +102,10 @@ export function SectionContent({ id, filters }: { id: SectionId; filters: SragFi
     case 'clinico':
       return (
         <>
-          <FlowCard filters={filters} />
-          <SignatureCard filters={filters} />
+          <SeverityCascadeCard filters={filters} />
+          <WarningSignsCard filters={filters} />
+          <RiskFactorLoadCard filters={filters} />
+          <SymptomsByAgentCard filters={filters} />
         </>
       );
     case 'cidadao':

@@ -1,41 +1,36 @@
 import { describe, expect, it } from 'vitest';
 import {
+  agentLegendName,
+  agentsWithCases,
   antiviralWindowTooltip,
   buildAntiviralWindowsOption,
   buildDiagnosticLethalityOption,
   buildDiagnosticMethodsOption,
-  buildHeatmapOption,
   buildIcuAccessOption,
   buildImagingOption,
   buildMaternalOutcomesOption,
   buildNosocomialOption,
   buildNotificationDelayOption,
-  buildOddsRatioOption,
   buildRankedBarsOption,
   buildSamplePositivityOption,
-  buildSankeyOption,
   buildStayCurveOption,
+  buildSymptomsByAgentOption,
   buildUnitDelayOption,
   diagnosticPeriodTooltip,
   formatPercent,
   formatPeriod,
-  heatmapLabel,
   icuPeriodTooltip,
   imagingTooltip,
   lethalityTooltip,
   maternalTooltip,
   nosocomialTooltip,
   notificationDelayTooltip,
-  oddsRatioColor,
-  oddsRatioLabel,
-  oddsRatioSentence,
   percentOf,
-  prepareOddsRatio,
   rankedBarTooltip,
   rankedBarsRows,
   samplePositivityTooltip,
-  sankeyTooltip,
   stayCurveTooltip,
+  symptomsTooltip,
   unitDelayAsRows,
 } from '../../src/components/Charts/Analytics/chartOptions';
 import { chartTheme } from '../../src/components/Charts/Analytics/chartTheme';
@@ -48,163 +43,11 @@ import type {
   MaternalOutcomesResponse,
   NosocomialRiskResponse,
   NotificationDelayBairro,
-  OddsRatioRow,
   SamplePositivityResponse,
+  SymptomsByAgentResponse,
 } from '../../src/service/srag/sragAnalytics';
 
 const theme = chartTheme(false);
-
-const row = (overrides: Partial<OddsRatioRow>): OddsRatioRow => ({
-  name: 'Diabetes',
-  value: 15,
-  deaths: 10,
-  lethality: 66.67,
-  prevalence: 37.5,
-  odds_ratio: 8,
-  ci_lower: 1.87,
-  ci_upper: 34.2,
-  ...overrides,
-});
-
-describe('prepareOddsRatio', () => {
-  it('separa fatores sem OR estimável', () => {
-    const plot = prepareOddsRatio([
-      row({ name: 'Diabetes' }),
-      row({ name: 'Asma', value: 0, odds_ratio: 0, ci_lower: 0, ci_upper: 0 }),
-    ]);
-    expect(plot.rows.map((r) => r.name)).toEqual(['Diabetes']);
-    expect(plot.omitted).toEqual(['Asma']);
-  });
-
-  it('ordena por OR crescente (o maior fica no topo do gráfico)', () => {
-    const plot = prepareOddsRatio([
-      row({ name: 'A', odds_ratio: 5 }),
-      row({ name: 'B', odds_ratio: 1.2 }),
-      row({ name: 'C', odds_ratio: 9 }),
-    ]);
-    expect(plot.rows.map((r) => r.name)).toEqual(['B', 'A', 'C']);
-  });
-
-  it('calcula limites do eixo em potências de 10', () => {
-    expect(prepareOddsRatio([row({ ci_upper: 34.2 })])).toMatchObject({
-      axisMin: 0.1,
-      axisMax: 100,
-    });
-    expect(prepareOddsRatio([row({ ci_lower: 0.04 })]).axisMin).toBe(0.01);
-    expect(prepareOddsRatio([row({ odds_ratio: 3, ci_upper: 4 })]).axisMax).toBe(10);
-  });
-
-  it('limita o eixo a 1000', () => {
-    expect(prepareOddsRatio([row({ ci_upper: 99999 })]).axisMax).toBe(1000);
-  });
-
-  it('não quebra sem nenhum fator estimável', () => {
-    const plot = prepareOddsRatio([]);
-    expect(plot.rows).toEqual([]);
-    expect(plot.axisMin).toBe(0.1);
-  });
-});
-
-describe('oddsRatioColor', () => {
-  it('classifica pela significância do intervalo de confiança', () => {
-    expect(oddsRatioColor(row({ ci_lower: 1.5 }))).toBe('#DC2626');
-    expect(oddsRatioColor(row({ odds_ratio: 0.4, ci_lower: 0.1, ci_upper: 0.8 }))).toBe('#3C50E0');
-    expect(oddsRatioColor(row({ ci_lower: 0.5, ci_upper: 3 }))).toBe('#94A3B8');
-  });
-});
-
-describe('oddsRatioLabel / oddsRatioSentence', () => {
-  it('escreve quantas vezes a chance de óbito é maior', () => {
-    expect(oddsRatioLabel(row({ odds_ratio: 8 }))).toBe('×8');
-    expect(oddsRatioLabel(row({ odds_ratio: 2.345 }))).toBe('×2,3');
-    expect(oddsRatioSentence(row({ odds_ratio: 8, ci_lower: 1.87 }))).toBe(
-      'Chance de óbito 8 vezes maior que em quem não tem o fator',
-    );
-  });
-
-  it('descreve fator protetor em percentual', () => {
-    expect(oddsRatioSentence(row({ odds_ratio: 0.4, ci_lower: 0.1, ci_upper: 0.8 }))).toBe(
-      'Chance de óbito 60% menor que em quem não tem o fator',
-    );
-  });
-
-  it('não afirma diferença quando o intervalo inclui 1', () => {
-    expect(oddsRatioSentence(row({ odds_ratio: 3, ci_lower: 0.5, ci_upper: 9 }))).toMatch(
-      /Sem diferença/,
-    );
-  });
-});
-
-describe('buildOddsRatioOption', () => {
-  it('mantém todos os valores dentro dos limites do eixo log', () => {
-    const plot = prepareOddsRatio([row({ ci_lower: 0.0001, ci_upper: 99999 })]);
-    const option = buildOddsRatioOption(plot, theme) as {
-      series: { data: { value: number[] }[] }[];
-    };
-    const [, lo, hi] = option.series[1].data[0].value.slice(1);
-    expect(lo).toBeGreaterThanOrEqual(plot.axisMin);
-    expect(hi).toBeLessThanOrEqual(plot.axisMax);
-  });
-});
-
-describe('buildSankeyOption', () => {
-  const flow = {
-    nodes: [{ name: 'Comunitária' }, { name: 'Óbito' }, { name: 'Origem (Ignorado)' }],
-    links: [{ source: 'Comunitária', target: 'Óbito', value: 3, pct: 25 }],
-  };
-
-  it('mapeia nós e ligações e colore pelo significado', () => {
-    const option = buildSankeyOption(flow, theme) as {
-      series: { data: { name: string; itemStyle: { color: string } }[]; links: unknown[] }[];
-    };
-    const [serie] = option.series;
-    expect(serie.links).toHaveLength(1);
-    expect(serie.data.find((n) => n.name === 'Óbito')?.itemStyle.color).toBe('#DC2626');
-    expect(serie.data.find((n) => n.name === 'Origem (Ignorado)')?.itemStyle.color).toBe(
-      theme.muted,
-    );
-  });
-
-  it('descreve ligações e nós no tooltip', () => {
-    const edge = sankeyTooltip({
-      dataType: 'edge',
-      data: { source: 'Comunitária', target: 'Óbito', value: 3, pct: 25 },
-    });
-    expect(edge).toContain('3</b> casos (25% de "Comunitária")');
-    expect(sankeyTooltip({ name: 'Cura', value: 7 })).toContain('Cura: <b>7</b> casos');
-  });
-});
-
-describe('buildHeatmapOption', () => {
-  const matrix: [number, number][][] = [
-    [
-      [50, 2],
-      [0, 0],
-    ],
-  ];
-
-  it('gera uma célula por sintoma × faixa etária', () => {
-    const option = buildHeatmapOption(['Febre'], ['Adulto', 'Idoso'], matrix, theme, true) as {
-      series: { data: { value: number[] }[] }[];
-    };
-    expect(option.series[0].data.map((d) => d.value)).toEqual([
-      [0, 0, 50, 2],
-      [1, 0, 0, 0],
-    ]);
-  });
-
-  it('mostra "–" quando não há casos no grupo', () => {
-    expect(heatmapLabel({ value: [1, 0, 0, 0] })).toBe('–');
-    expect(heatmapLabel({ value: [0, 0, 49.6, 2] })).toBe('50%');
-  });
-
-  it('esconde os rótulos do eixo y fora do primeiro gráfico', () => {
-    const option = buildHeatmapOption(['Febre'], ['Adulto'], [[[10, 1]]], theme, false) as {
-      yAxis: { axisLabel: { show: boolean } };
-    };
-    expect(option.yAxis.axisLabel.show).toBe(false);
-  });
-});
 
 describe('formatPeriod', () => {
   it('formata ano, trimestre e mês', () => {
@@ -344,7 +187,7 @@ describe('buildNosocomialOption', () => {
     expect(bars.map((bar) => bar.itemStyle.color)).toEqual(['#3C50E0', '#DC2626']);
   });
 
-    it('desenha a barra de infecção hospitalar e a linha de média, sem limite de alerta', () => {
+  it('desenha a barra de infecção hospitalar e a linha de média, sem limite de alerta', () => {
     const option = buildNosocomialOption(base, theme) as Option;
     expect(option.series.map((serie) => serie.name)).toEqual([
       'Infecção hospitalar',
@@ -353,7 +196,7 @@ describe('buildNosocomialOption', () => {
     expect(option.series[1].data).toEqual([8, 8]);
   });
 
-    it('mostra no tooltip o período e a contagem, sem aviso de alerta', () => {
+  it('mostra no tooltip o período e a contagem, sem aviso de alerta', () => {
     const tooltip = nosocomialTooltip(base.periods[1], 'month');
     expect(tooltip).toContain('fev/24');
     expect(tooltip).toContain('Infecção hospitalar: <b>12</b> de 20 casos (60,0%)');
@@ -740,5 +583,77 @@ describe('buildStayCurveOption', () => {
     expect(tooltip).toContain('Até o 2º dia de internação');
     expect(tooltip).toContain('Já tiveram alta: <b>55,5%</b>');
     expect(tooltip).toContain('Morreram: <b>10,0%</b>');
+  });
+});
+
+describe('sintomas por agente', () => {
+  const data: SymptomsByAgentResponse = {
+    symptoms: ['Febre', 'Tosse', 'Perda de olfato'],
+    agents: [
+      {
+        key: 'covid',
+        label: 'COVID-19',
+        cases: 100,
+        count: [80, 70, 60],
+        pct: [80, 70, 60],
+        distinctive: { symptom: 'Perda de olfato', pct: 60, gap: 40 },
+      },
+      {
+        key: 'gripe',
+        label: 'Influenza',
+        cases: 50,
+        count: [45, 30, 5],
+        pct: [90, 60, 10],
+        distinctive: null,
+      },
+      { key: 'vsr', label: 'VSR', cases: 0, count: [0, 0, 0], pct: [0, 0, 0], distinctive: null },
+    ],
+  };
+
+  it('ignora agentes sem casos', () => {
+    expect(agentsWithCases(data).map((agent) => agent.key)).toEqual(['covid', 'gripe']);
+  });
+
+  it('escreve o total de casos na legenda', () => {
+    expect(agentLegendName(data.agents[0])).toBe('COVID-19 (100 casos)');
+  });
+
+  it('monta uma série de barras por agente com casos', () => {
+    const option = buildSymptomsByAgentOption(data, theme) as {
+      series: { name: string; data: number[]; itemStyle: { color: string } }[];
+      yAxis: { data: string[]; inverse: boolean };
+    };
+    expect(option.series.map((serie) => serie.name)).toEqual([
+      'COVID-19 (100 casos)',
+      'Influenza (50 casos)',
+    ]);
+    expect(option.series[0].data).toEqual([80, 70, 60]);
+    expect(option.yAxis.data).toEqual(['Febre', 'Tosse', 'Perda de olfato']);
+    expect(option.yAxis.inverse).toBe(true);
+  });
+
+  it('limita a quantidade de sintomas exibidos', () => {
+    const option = buildSymptomsByAgentOption(data, theme, 2) as {
+      series: { data: number[] }[];
+      yAxis: { data: string[] };
+    };
+    expect(option.yAxis.data).toEqual(['Febre', 'Tosse']);
+    expect(option.series[0].data).toEqual([80, 70]);
+  });
+
+  it('usa a mesma cor do agente nos outros gráficos', () => {
+    const option = buildSymptomsByAgentOption(data, theme) as {
+      series: { itemStyle: { color: string } }[];
+    };
+    expect(option.series[0].itemStyle.color).toBe('#EA580C');
+    expect(option.series[1].itemStyle.color).toBe('#2563EB');
+  });
+
+  it('o tooltip mostra todos os agentes com contagem e sublinha o da barra', () => {
+    const tooltip = symptomsTooltip(data, 0, 'COVID-19 (100 casos)');
+    expect(tooltip).toContain('<b>Febre</b>');
+    expect(tooltip).toContain('<u>COVID-19: <b>80%</b> (80 de 100)</u>');
+    expect(tooltip).toContain('Influenza: <b>90%</b> (45 de 50)');
+    expect(tooltip).not.toContain('VSR');
   });
 });

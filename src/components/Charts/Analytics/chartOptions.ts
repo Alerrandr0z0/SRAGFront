@@ -1,7 +1,6 @@
 import type {
   AntiviralWindow,
   AntiviralWindowsResponse,
-  ClinicalFlowResponse,
   DiagnosticLethalityMethod,
   DiagnosticLethalityResponse,
   DiagnosticMethodsPeriod,
@@ -18,13 +17,13 @@ import type {
   NosocomialRiskResponse,
   NotificationDelayBairro,
   NotificationDelayStatus,
-  OddsRatioRow,
   SamplePositivityResponse,
   SamplePositivityRow,
   SeverityByAgePoint,
   SeverityByAgeResponse,
-  SignatureCell,
   StayCurvePoint,
+  SymptomAgent,
+  SymptomsByAgentResponse,
   UnitDelayRow,
 } from '../../../service/srag/sragAnalytics';
 import type { ChartTheme } from './chartTheme';
@@ -34,334 +33,86 @@ const RED = '#DC2626';
 const BLUE = '#3C50E0';
 const GREEN = '#10B981';
 const AMBER = '#F59E0B';
-const CYAN = '#0FADCF';
 const SLATE = '#94A3B8';
 
 // ---------------------------------------------------------------------------
-// Sankey — fluxo da jornada clínica
+// Sintomas por agente — barras agrupadas (o que diferencia COVID-19, Influenza e VSR)
 // ---------------------------------------------------------------------------
 
-const NODE_COLORS: Record<string, string> = {
-  Comunitária: GREEN,
-  'Infecção Hospitalar': AMBER,
-  'Internado em UTI': BLUE,
-  'Internado em Enfermaria': CYAN,
-  'Vent. Invasiva': RED,
-  'Vent. Não Inv.': AMBER,
-  'Sem Suporte': SLATE,
-  Cura: GREEN,
-  Óbito: RED,
-  'Em Aberto': SLATE,
-};
+const SYMPTOMS_SHOWN = 8;
 
-interface SankeyTooltipParams {
-  dataType?: string;
-  name?: string;
-  value?: number;
-  data?: { source?: string; target?: string; value?: number; pct?: number };
+/** Agentes sem casos no recorte ficam de fora do gráfico (só gerariam barras vazias). */
+export function agentsWithCases(data: SymptomsByAgentResponse): SymptomAgent[] {
+  return data.agents.filter((agent) => agent.cases > 0);
 }
 
-export function sankeyTooltip(params: SankeyTooltipParams): string {
-  const { data } = params;
-  if (params.dataType === 'edge' && data) {
-    return `${data.source} → ${data.target}<br/><b>${data.value}</b> casos (${data.pct}% de "${data.source}")`;
-  }
-  return `${params.name}: <b>${params.value ?? 0}</b> casos`;
+export function agentLegendName(agent: SymptomAgent): string {
+  return `${agent.label} (${agent.cases.toLocaleString('pt-BR')} casos)`;
 }
 
-export function buildSankeyOption(
-  flow: ClinicalFlowResponse,
+export function symptomsTooltip(
+  data: SymptomsByAgentResponse,
+  symptomIndex: number,
+  seriesName?: string,
+): string {
+  const header = `<b>${data.symptoms[symptomIndex] ?? ''}</b>`;
+  const lines = agentsWithCases(data).map((agent) => {
+    const text = `${agent.label}: <b>${agent.pct[symptomIndex] ?? 0}%</b> (${agent.count[symptomIndex] ?? 0} de ${agent.cases})`;
+    return agentLegendName(agent) === seriesName ? `<u>${text}</u>` : text;
+  });
+  return [header, ...lines].join('<br/>');
+}
+
+export function buildSymptomsByAgentOption(
+  data: SymptomsByAgentResponse,
   theme: ChartTheme,
+  limit = SYMPTOMS_SHOWN,
 ): EChartsCoreOption {
+  const agents = agentsWithCases(data);
+  const symptoms = data.symptoms.slice(0, limit);
+
   return {
+    legend: { top: 0, textStyle: { color: theme.text } },
+    grid: { left: 150, right: 44, top: 44, bottom: 24 },
     tooltip: {
       trigger: 'item',
-      backgroundColor: theme.tooltipBg,
-      borderColor: theme.grid,
-      textStyle: { color: theme.tooltipText },
-      formatter: (raw: unknown) => sankeyTooltip(raw as SankeyTooltipParams),
-    },
-    series: [
-      {
-        type: 'sankey',
-        left: 8,
-        right: 140,
-        top: 8,
-        bottom: 8,
-        nodeAlign: 'justify',
-        nodeWidth: 14,
-        nodeGap: 14,
-        draggable: false,
-        emphasis: { focus: 'adjacency' },
-        lineStyle: { color: 'gradient', curveness: 0.5, opacity: 0.4 },
-        label: { color: theme.text, fontSize: 12 },
-        data: flow.nodes.map((node) => ({
-          name: node.name,
-          itemStyle: { color: NODE_COLORS[node.name] ?? theme.muted },
-        })),
-        links: flow.links.map((link) => ({
-          source: link.source,
-          target: link.target,
-          value: link.value,
-          pct: link.pct,
-        })),
-      },
-    ],
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Odds Ratio das comorbidades — barras a partir de ×1 (sem associação)
-// ---------------------------------------------------------------------------
-
-export interface OddsRatioPlot {
-  /** Ordenado por OR crescente: o maior OR fica no topo do gráfico. */
-  rows: OddsRatioRow[];
-  /** Fatores sem casos suficientes para estimar o OR. */
-  omitted: string[];
-  axisMin: number;
-  axisMax: number;
-}
-
-const isEstimable = (row: OddsRatioRow) => row.odds_ratio > 0 && row.value > 0;
-
-export function prepareOddsRatio(rows: OddsRatioRow[]): OddsRatioPlot {
-  const usable = rows.filter(isEstimable).sort((a, b) => a.odds_ratio - b.odds_ratio);
-  const omitted = rows.filter((row) => !isEstimable(row)).map((row) => row.name);
-
-  const lowest = usable.length > 0 ? Math.min(...usable.map((row) => row.ci_lower)) : 1;
-  const highest = Math.max(10, ...usable.map((row) => Math.max(row.ci_upper, row.odds_ratio)));
-
-  return {
-    rows: usable,
-    omitted,
-    axisMin: lowest < 0.1 ? 0.01 : 0.1,
-    axisMax: Math.min(1000, 10 ** Math.ceil(Math.log10(highest))),
-  };
-}
-
-/** Vermelho: associado ao óbito (IC > 1). Azul: protetor (IC < 1). Cinza: sem significância. */
-export function oddsRatioColor(row: OddsRatioRow): string {
-  if (row.ci_lower > 1) return RED;
-  if (row.ci_upper < 1) return BLUE;
-  return SLATE;
-}
-
-interface CustomApi {
-  value(dimension: number): number;
-  coord(point: [number, number]): [number, number];
-  size(dataSize: [number, number]): [number, number];
-}
-
-interface CustomParams {
-  coordSys: { y: number; height: number };
-}
-
-const oneDecimal = (value: number) => value.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
-
-/** Rótulo curto da barra: "×8" (quantas vezes a chance de óbito é maior ou menor). */
-export function oddsRatioLabel(row: OddsRatioRow): string {
-  return `×${oneDecimal(row.odds_ratio)}`;
-}
-
-/** Frase em linguagem comum para o tooltip. */
-export function oddsRatioSentence(row: OddsRatioRow): string {
-  if (row.ci_lower <= 1 && row.ci_upper >= 1) {
-    return 'Sem diferença estatisticamente comprovada na chance de óbito';
-  }
-  if (row.odds_ratio >= 1) {
-    return `Chance de óbito ${oneDecimal(row.odds_ratio)} vezes maior que em quem não tem o fator`;
-  }
-  const lower = Math.round((1 - row.odds_ratio) * 100);
-  return `Chance de óbito ${lower}% menor que em quem não tem o fator`;
-}
-
-function oddsTooltip(params: { data?: { row?: OddsRatioRow } }): string {
-  const row = params.data?.row;
-  if (!row) return '';
-  return [
-    `<b>${row.name}</b>`,
-    oddsRatioSentence(row),
-    `OR ${row.odds_ratio} (IC 95%: ${row.ci_lower}–${row.ci_upper})`,
-    `${row.value} casos (${row.prevalence}% da base)`,
-    `Letalidade: ${row.lethality}% (${row.deaths} óbitos)`,
-  ].join('<br/>');
-}
-
-export function buildOddsRatioOption(plot: OddsRatioPlot, theme: ChartTheme): EChartsCoreOption {
-  const clamp = (value: number) => Math.min(plot.axisMax, Math.max(plot.axisMin, value));
-  const colors = plot.rows.map(oddsRatioColor);
-
-  return {
-    grid: { left: 112, right: 48, top: 16, bottom: 48 },
-    tooltip: {
-      trigger: 'item',
-      backgroundColor: theme.tooltipBg,
-      borderColor: theme.grid,
-      textStyle: { color: theme.tooltipText },
-      formatter: (raw: unknown) => oddsTooltip(raw as { data?: { row?: OddsRatioRow } }),
-    },
-    xAxis: {
-      type: 'log',
-      min: plot.axisMin,
-      max: plot.axisMax,
-      name: 'Chance de óbito (× vezes) — escala log',
-      nameLocation: 'middle',
-      nameGap: 30,
-      nameTextStyle: { color: theme.muted },
-      axisLabel: { color: theme.muted },
-      splitLine: { lineStyle: { color: theme.grid } },
-    },
-    yAxis: {
-      type: 'category',
-      data: plot.rows.map((row) => row.name),
-      axisTick: { show: false },
-      axisLine: { lineStyle: { color: theme.grid } },
-      axisLabel: { color: theme.text },
-    },
-    series: [
-      {
-        // Linha de referência: OR = 1 (sem associação).
-        type: 'custom',
-        silent: true,
-        z: 1,
-        data: [[1, 0]],
-        encode: { x: 0, y: 1 },
-        renderItem: (params: unknown, api: unknown) => {
-          const { coordSys } = params as CustomParams;
-          const x = (api as CustomApi).coord([1, 0])[0];
-          return {
-            type: 'line',
-            shape: { x1: x, y1: coordSys.y, x2: x, y2: coordSys.y + coordSys.height },
-            style: { stroke: theme.muted, lineWidth: 1, lineDash: [4, 4] },
-          };
-        },
-      },
-      {
-        type: 'custom',
-        z: 2,
-        encode: { x: [1, 2, 3], y: 0 },
-        data: plot.rows.map((row, index) => ({
-          value: [
-            index,
-            clamp(row.odds_ratio),
-            clamp(row.ci_lower),
-            clamp(row.ci_upper),
-            colors[index],
-          ],
-          row,
-        })),
-        renderItem: (_params: unknown, api: unknown) => {
-          const customApi = api as CustomApi;
-          const index = customApi.value(0);
-          const row = plot.rows[index];
-          const end = customApi.coord([customApi.value(1), index]);
-          const origin = customApi.coord([1, index]);
-          const color = colors[index];
-          const band = customApi.size([0, 1])[1] * 0.6;
-
-          return {
-            type: 'group',
-            children: [
-              {
-                type: 'rect',
-                shape: {
-                  x: Math.min(origin[0], end[0]),
-                  y: origin[1] - band / 2,
-                  width: Math.max(2, Math.abs(end[0] - origin[0])),
-                  height: band,
-                },
-                style: { fill: color },
-              },
-              {
-                type: 'text',
-                style: {
-                  text: oddsRatioLabel(row),
-                  // Sempre à direita da barra ou da linha ×1, para não colidir com os nomes.
-                  x: Math.max(end[0], origin[0]) + 6,
-                  y: origin[1],
-                  fill: theme.text,
-                  fontWeight: 'bold',
-                  textAlign: 'left',
-                  textVerticalAlign: 'middle',
-                },
-              },
-            ],
-          };
-        },
-      },
-    ],
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Heatmap — assinatura clínica de sintomas
-// ---------------------------------------------------------------------------
-
-export function heatmapLabel(raw: { value?: number[] }): string {
-  const value = raw.value ?? [];
-  return (value[3] ?? 0) > 0 ? `${Math.round(value[2] ?? 0)}%` : '–';
-}
-
-export function buildHeatmapOption(
-  labels: string[],
-  bands: string[],
-  matrix: SignatureCell[][],
-  theme: ChartTheme,
-  showLabels: boolean,
-): EChartsCoreOption {
-  const data = matrix.flatMap((row, y) =>
-    row.map(([prevalence, cases], x) => ({
-      value: [x, y, prevalence, cases],
-      label: { color: prevalence > 55 ? '#FFFFFF' : theme.text },
-    })),
-  );
-
-  return {
-    grid: { left: showLabels ? 170 : 8, right: 8, top: 8, bottom: 30 },
-    tooltip: {
       backgroundColor: theme.tooltipBg,
       borderColor: theme.grid,
       textStyle: { color: theme.tooltipText },
       formatter: (raw: unknown) => {
-        const [x = 0, y = 0, prevalence = 0, cases = 0] = (raw as { value?: number[] }).value ?? [];
-        return `${labels[y]} · ${bands[x]}<br/><b>${prevalence}%</b> (${cases} casos)`;
+        const { dataIndex, seriesName } = raw as { dataIndex: number; seriesName?: string };
+        return symptomsTooltip(data, dataIndex, seriesName);
       },
     },
     xAxis: {
-      type: 'category',
-      data: bands,
-      axisTick: { show: false },
-      axisLine: { show: false },
-      axisLabel: { color: theme.muted, fontSize: 11 },
+      type: 'value',
+      min: 0,
+      max: 100,
+      axisLabel: { color: theme.muted, formatter: '{value}%' },
+      splitLine: { lineStyle: { color: theme.grid } },
     },
     yAxis: {
       type: 'category',
-      data: labels,
       inverse: true,
+      data: symptoms,
       axisTick: { show: false },
-      axisLine: { show: false },
-      axisLabel: { show: showLabels, color: theme.text, fontSize: 11 },
+      axisLine: { lineStyle: { color: theme.grid } },
+      axisLabel: { color: theme.text, width: 134, overflow: 'truncate' },
     },
-    visualMap: {
-      show: false,
-      min: 0,
-      max: 100,
-      dimension: 2,
-      inRange: { color: [theme.heatLow, theme.heatHigh] },
-    },
-    series: [
-      {
-        type: 'heatmap',
-        data,
-        label: {
-          show: true,
-          fontSize: 10,
-          formatter: (raw: unknown) => heatmapLabel(raw as { value?: number[] }),
-        },
-        itemStyle: { borderColor: theme.tooltipBg, borderWidth: 2 },
+    series: agents.map((agent) => ({
+      name: agentLegendName(agent),
+      type: 'bar',
+      barMaxWidth: 14,
+      itemStyle: { color: AGENT_COLORS[agent.label] ?? theme.muted },
+      label: {
+        show: true,
+        position: 'right',
+        color: theme.muted,
+        fontSize: 10,
+        formatter: (raw: unknown) => `${(raw as { value: number }).value}%`,
       },
-    ],
+      data: agent.pct.slice(0, limit),
+    })),
   };
 }
 
@@ -876,7 +627,7 @@ export function buildImagingOption(rows: ImagingFinding[], theme: ChartTheme): E
 // Gravidade e letalidade por faixa etária — barras empilhadas + linhas de CFR
 // ---------------------------------------------------------------------------
 
-const AGENT_COLORS: Record<string, string> = {
+export const AGENT_COLORS: Record<string, string> = {
   VSR: '#0F766E',
   Influenza: '#2563EB',
   'COVID-19': '#EA580C',
