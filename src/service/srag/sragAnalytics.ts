@@ -19,18 +19,17 @@ export interface ClinicalFlowResponse {
   links: FlowLink[];
 }
 
-// --- Odds Ratio de comorbidades ---
+// --- Percentual letalidade por comorbidades ---
 
-export interface OddsRatioRow {
+export interface ComorbidityLethalityRow {
   name: string;
   value: number;
   deaths: number;
-  lethality: number;
-  prevalence: number;
-  odds_ratio: number;
-  ci_lower: number;
-  ci_upper: number;
+  resolved: number;
+  lethality: number
 }
+
+
 
 // --- Assinatura clínica de sintomas ---
 
@@ -310,8 +309,8 @@ export function getClinicalFlow(filters: SragFilters): Promise<ClinicalFlowRespo
   return getApiData<ClinicalFlowResponse>(buildAnalyticsUrl('/analytics/clinical_flow', filters));
 }
 
-export function getOddsRatio(filters: SragFilters): Promise<OddsRatioRow[]> {
-  return getApiData<OddsRatioRow[]>(
+export function getComorbidityLethality(filters: SragFilters): Promise<ComorbidityLethalityRow[]> {
+  return getApiData<ComorbidityLethalityRow[]>(
     buildAnalyticsUrl('/analytics/comorbidities_odds_ratio', filters),
   );
 }

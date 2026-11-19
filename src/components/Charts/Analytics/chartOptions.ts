@@ -6,6 +6,7 @@ import type {
   DiagnosticLethalityResponse,
   DiagnosticMethodsPeriod,
   DiagnosticMethodsResponse,
+  ComorbidityLethalityRow,
   IcuAccessPeriod,
   IcuAccessResponse,
   IcuGranularity,
@@ -18,7 +19,6 @@ import type {
   NosocomialRiskResponse,
   NotificationDelayBairro,
   NotificationDelayStatus,
-  OddsRatioRow,
   SamplePositivityResponse,
   SamplePositivityRow,
   SeverityByAgePoint,
@@ -111,147 +111,89 @@ export function buildSankeyOption(
 }
 
 // ---------------------------------------------------------------------------
-// Forest plot — Odds Ratio das comorbidades
+// Letalidade por comorbidades
 // ---------------------------------------------------------------------------
 
-export interface OddsRatioPlot {
-  /** Ordenado por OR crescente: o maior OR fica no topo do gráfico. */
-  rows: OddsRatioRow[];
-  /** Fatores sem casos suficientes para estimar o OR. */
+export interface ComorbidityLethalityPlot {
+  rows: ComorbidityLethalityRow[];
+  /** Comorbidades sem nenhum caso com desfecho conhecido: não dá para calcular a letalidade. */
   omitted: string[];
-  axisMin: number;
-  axisMax: number;
 }
 
-const isEstimable = (row: OddsRatioRow) => row.odds_ratio > 0 && row.value > 0;
-
-export function prepareOddsRatio(rows: OddsRatioRow[]): OddsRatioPlot {
-  const usable = rows.filter(isEstimable).sort((a, b) => a.odds_ratio - b.odds_ratio);
-  const omitted = rows.filter((row) => !isEstimable(row)).map((row) => row.name);
-
-  const lowest = usable.length > 0 ? Math.min(...usable.map((row) => row.ci_lower)) : 1;
-  const highest = Math.max(10, ...usable.map((row) => Math.max(row.ci_upper, row.odds_ratio)));
+export function prepareComorbidityLethality(
+  rows: ComorbidityLethalityRow[],
+): ComorbidityLethalityPlot {
+  const hasLethality = (row: ComorbidityLethalityRow) => row.resolved > 0;
 
   return {
-    rows: usable,
-    omitted,
-    axisMin: lowest < 0.1 ? 0.01 : 0.1,
-    axisMax: Math.min(1000, 10 ** Math.ceil(Math.log10(highest))),
+    rows: rows.filter(hasLethality),
+    omitted: rows.filter((row) => !hasLethality(row)).map((row) => row.name),
   };
 }
 
-/** Vermelho: associado ao óbito (IC > 1). Azul: protetor (IC < 1). Cinza: sem significância. */
-export function oddsRatioColor(row: OddsRatioRow): string {
-  if (row.ci_lower > 1) return RED;
-  if (row.ci_upper < 1) return BLUE;
-  return SLATE;
-}
+const deathsLabel = (deaths: number): string => `${deaths} ${deaths === 1 ? 'óbito' : 'óbitos'}`;
 
-interface CustomApi {
-  value(dimension: number): number;
-  coord(point: [number, number]): [number, number];
-}
-
-interface CustomParams {
-  coordSys: { y: number; height: number };
-}
-
-function oddsTooltip(params: { data?: { row?: OddsRatioRow } }): string {
-  const row = params.data?.row;
-  if (!row) return '';
-  return [
+export function comorbidityLethalityTooltip(row: ComorbidityLethalityRow): string {
+  const withoutOutcome = row.value - row.resolved;
+  const lines = [
     `<b>${row.name}</b>`,
-    `OR ${row.odds_ratio} (IC 95%: ${row.ci_lower}–${row.ci_upper})`,
-    `${row.value} casos (${row.prevalence}% da base)`,
-    `Letalidade: ${row.lethality}% (${row.deaths} óbitos)`,
-  ].join('<br/>');
+    `Letalidade: <b>${formatPercent(row.lethality)}</b>`,
+    `<b>${deathsLabel(row.deaths)}</b> em <b>${row.resolved}</b> casos com desfecho conhecido`,
+  ];
+  if (withoutOutcome > 0) {
+    lines.push(`Total de casos com a comorbidade: ${row.value} (${withoutOutcome} sem desfecho)`);
+  }
+  return lines.join('<br/>');
 }
 
-export function buildOddsRatioOption(plot: OddsRatioPlot, theme: ChartTheme): EChartsCoreOption {
-  const clamp = (value: number) => Math.min(plot.axisMax, Math.max(plot.axisMin, value));
-  const colors = plot.rows.map(oddsRatioColor);
+export function buildComorbidityLethalityOption(
+  plot: ComorbidityLethalityPlot,
+  theme: ChartTheme,
+): EChartsCoreOption {
+  // Ordem crescente: a maior letalidade fica no topo do gráfico.
+  const rows = [...plot.rows].sort((a, b) => a.lethality - b.lethality);
 
   return {
-    grid: { left: 140, right: 28, top: 16, bottom: 48 },
+    grid: { left: 150, right: 120, top: 8, bottom: 32 },
     tooltip: {
       trigger: 'item',
       backgroundColor: theme.tooltipBg,
       borderColor: theme.grid,
       textStyle: { color: theme.tooltipText },
-      formatter: (raw: unknown) => oddsTooltip(raw as { data?: { row?: OddsRatioRow } }),
+      formatter: (raw: unknown) => {
+        const row = (raw as { data?: { row?: ComorbidityLethalityRow } }).data?.row;
+        return row ? comorbidityLethalityTooltip(row) : '';
+      },
     },
     xAxis: {
-      type: 'log',
-      min: plot.axisMin,
-      max: plot.axisMax,
-      name: 'Odds Ratio (escala logarítmica)',
-      nameLocation: 'middle',
-      nameGap: 30,
-      nameTextStyle: { color: theme.muted },
-      axisLabel: { color: theme.muted },
+      type: 'value',
+      min: 0,
+      max: 100,
+      axisLabel: { color: theme.muted, formatter: '{value}%' },
       splitLine: { lineStyle: { color: theme.grid } },
     },
     yAxis: {
       type: 'category',
-      data: plot.rows.map((row) => row.name),
+      data: rows.map((row) => row.name),
       axisTick: { show: false },
       axisLine: { lineStyle: { color: theme.grid } },
       axisLabel: { color: theme.text },
     },
     series: [
       {
-        // Linha de referência: OR = 1 (sem associação).
-        type: 'custom',
-        silent: true,
-        z: 1,
-        data: [[1, 0]],
-        encode: { x: 0, y: 1 },
-        renderItem: (params: unknown, api: unknown) => {
-          const { coordSys } = params as CustomParams;
-          const x = (api as CustomApi).coord([1, 0])[0];
-          return {
-            type: 'line',
-            shape: { x1: x, y1: coordSys.y, x2: x, y2: coordSys.y + coordSys.height },
-            style: { stroke: theme.muted, lineWidth: 1, lineDash: [4, 4] },
-          };
-        },
-      },
-      {
-        type: 'custom',
-        z: 2,
-        encode: { x: [1, 2, 3], y: 0 },
-        data: plot.rows.map((row, index) => ({
-          value: [
-            index,
-            clamp(row.odds_ratio),
-            clamp(row.ci_lower),
-            clamp(row.ci_upper),
-            colors[index],
-          ],
-          row,
-        })),
-        renderItem: (_params: unknown, api: unknown) => {
-          const customApi = api as CustomApi;
-          const index = customApi.value(0);
-          const middle = customApi.coord([customApi.value(1), index]);
-          const low = customApi.coord([customApi.value(2), index]);
-          const high = customApi.coord([customApi.value(3), index]);
-          const color = colors[index];
-          return {
-            type: 'group',
-            children: [
-              {
-                type: 'line',
-                shape: { x1: low[0], y1: low[1], x2: high[0], y2: high[1] },
-                style: { stroke: color, lineWidth: 2 },
-              },
-              {
-                type: 'circle',
-                shape: { cx: middle[0], cy: middle[1], r: 5 },
-                style: { fill: color },
-              },
-            ],
-          };
+        type: 'bar',
+        barMaxWidth: 28,
+        itemStyle: { color: BLUE },
+        data: rows.map((row) => ({ value: row.lethality, row })),
+        label: {
+          show: true,
+          position: 'right',
+          color: theme.text,
+          // "58,3% (42 de 72)": óbitos de casos com desfecho conhecido, a base do percentual.
+          formatter: (raw: unknown) => {
+            const row = (raw as { data: { row: ComorbidityLethalityRow } }).data.row;
+            return `${formatPercent(row.lethality)} (${row.deaths} de ${row.resolved})`;
+          },
         },
       },
     ],

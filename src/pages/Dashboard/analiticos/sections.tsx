@@ -7,14 +7,13 @@ import DiagnosticMethodsCard from './DiagnosticMethodsCard';
 import FlowCard from './FlowCard';
 import HospitalStayCard from './HospitalStayCard';
 import IcuAccessCard from './IcuAccessCard';
-import ImagingCard from './ImagingCard';
 import LabPerformanceCard from './LabPerformanceCard';
 import MaternalOutcomesCard from './MaternalOutcomesCard';
 import NosocomialCard from './NosocomialCard';
 import NotificationDelayCard from './NotificationDelayCard';
 import NotifyingUnitsCard from './NotifyingUnitsCard';
 import OccupationCard from './OccupationCard';
-import OddsRatioCard from './OddsRatioCard';
+import ComorbidityLethalityCard from './ComorbidityLethalityCard';
 import SamplePositivityCard from './SamplePositivityCard';
 import type { TabSection } from './SectionTabs';
 import SignatureCard from './SignatureCard';
@@ -73,7 +72,7 @@ export function SectionContent({ id, filters }: { id: SectionId; filters: SragFi
           <DiagnosticLethalityCard filters={filters} />
           <NosocomialCard filters={filters} />
           <IcuAccessCard filters={filters} />
-          <OddsRatioCard filters={filters} />
+          <ComorbidityLethalityCard filters={filters} />
           <SeverityLethalityAgeCard filters={filters} />
           <LethalityAgeCard filters={filters}/>
         </>
@@ -84,7 +83,6 @@ export function SectionContent({ id, filters }: { id: SectionId; filters: SragFi
           <LabPerformanceCard filters={filters} />
           <SamplePositivityCard filters={filters} />
           <AntiviralCard filters={filters} />
-          <ImagingCard filters={filters} />
         </>
       );
     case 'territorio':
