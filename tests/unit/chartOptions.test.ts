@@ -11,11 +11,13 @@ import {
   buildMaternalOutcomesOption,
   buildNosocomialOption,
   buildNotificationDelayOption,
+  buildComorbidityLethalityOption,
   buildRankedBarsOption,
   buildSamplePositivityOption,
   buildStayCurveOption,
   buildSymptomsByAgentOption,
   buildUnitDelayOption,
+  comorbidityLethalityTooltip,
   diagnosticPeriodTooltip,
   formatPercent,
   formatPeriod,
@@ -26,6 +28,7 @@ import {
   nosocomialTooltip,
   notificationDelayTooltip,
   percentOf,
+  prepareComorbidityLethality,
   rankedBarTooltip,
   rankedBarsRows,
   samplePositivityTooltip,
@@ -43,11 +46,84 @@ import type {
   MaternalOutcomesResponse,
   NosocomialRiskResponse,
   NotificationDelayBairro,
+  ComorbidityLethalityRow,
   SamplePositivityResponse,
   SymptomsByAgentResponse,
 } from '../../src/service/srag/sragAnalytics';
 
 const theme = chartTheme(false);
+
+
+const comorbidity = (overrides: Partial<ComorbidityLethalityRow>): ComorbidityLethalityRow => ({
+  name: 'Diabetes',
+  value: 45,
+  deaths: 20,
+  resolved: 40,
+  lethality: 50,
+  ...overrides,
+});
+
+describe('letalidade por comorbidade', () => {
+  const rows = [
+    comorbidity({ name: 'Renal', value: 80, deaths: 42, resolved: 72, lethality: 58.3 }),
+    comorbidity({ name: 'Asma', value: 100, deaths: 11, resolved: 95, lethality: 11.6 }),
+    comorbidity({ name: 'Diabetes', value: 45, deaths: 20, resolved: 40, lethality: 50 }),
+    comorbidity({ name: 'Down', value: 3, deaths: 0, resolved: 0, lethality: 0 }),
+  ];
+  type Option = {
+    xAxis: { min: number; max: number };
+    yAxis: { data: string[] };
+    series: {
+      data: { value: number; row: ComorbidityLethalityRow }[];
+      label: { formatter: (raw: unknown) => string };
+    }[];
+  };
+  const optionFor = (items: ComorbidityLethalityRow[]) =>
+    buildComorbidityLethalityOption(prepareComorbidityLethality(items), theme) as Option;
+
+  it('omite só as comorbidades sem nenhum caso com desfecho conhecido', () => {
+    const plot = prepareComorbidityLethality(rows);
+    expect(plot.rows.map((item) => item.name)).toEqual(['Renal', 'Asma', 'Diabetes']);
+    expect(plot.omitted).toEqual(['Down']);
+  });
+
+  it('mantém 0% real: casos com desfecho conhecido e nenhum óbito', () => {
+    const zero = comorbidity({ name: 'Puérpera', value: 5, deaths: 0, resolved: 4, lethality: 0 });
+    expect(prepareComorbidityLethality([zero]).rows).toHaveLength(1);
+  });
+
+  it('ordena do menos ao mais letal, deixando o mais letal no topo', () => {
+    const option = optionFor(rows);
+    expect(option.yAxis.data).toEqual(['Asma', 'Diabetes', 'Renal']);
+    expect(option.series[0].data.map((bar) => bar.value)).toEqual([11.6, 50, 58.3]);
+  });
+
+  it('usa eixo percentual de 0 a 100%', () => {
+    const option = optionFor(rows);
+    expect(option.xAxis.min).toBe(0);
+    expect(option.xAxis.max).toBe(100);
+  });
+
+  it('mostra no rótulo o percentual e a base: óbitos de casos com desfecho', () => {
+    const [renal] = optionFor(rows).series[0].data.filter((bar) => bar.row.name === 'Renal');
+    expect(optionFor(rows).series[0].label.formatter({ data: renal })).toBe('58,3% (42 de 72)');
+  });
+
+  it('explica no tooltip a base do percentual e os casos sem desfecho', () => {
+    const tooltip = comorbidityLethalityTooltip(rows[0]);
+    expect(tooltip).toContain('Letalidade: <b>58,3%</b>');
+    expect(tooltip).toContain('<b>42 óbitos</b> em <b>72</b> casos com desfecho conhecido');
+    expect(tooltip).toContain('Total de casos com a comorbidade: 80 (8 sem desfecho)');
+  });
+
+  it('não menciona casos sem desfecho quando todos têm desfecho, e usa singular', () => {
+    const tooltip = comorbidityLethalityTooltip(
+      comorbidity({ value: 7, deaths: 1, resolved: 7, lethality: 14.3 }),
+    );
+    expect(tooltip).toContain('<b>1 óbito</b> em <b>7</b>');
+    expect(tooltip).not.toContain('sem desfecho');
+  });
+});
 
 describe('formatPeriod', () => {
   it('formata ano, trimestre e mês', () => {

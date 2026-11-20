@@ -5,6 +5,7 @@ import type {
   DiagnosticLethalityResponse,
   DiagnosticMethodsPeriod,
   DiagnosticMethodsResponse,
+  ComorbidityLethalityRow,
   EndemicChannelResponse,
   EndemicWeek,
   IcuAccessPeriod,
@@ -115,6 +116,96 @@ export function buildSymptomsByAgentOption(
       },
       data: agent.pct.slice(0, limit),
     })),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Letalidade por comorbidades
+// ---------------------------------------------------------------------------
+
+export interface ComorbidityLethalityPlot {
+  rows: ComorbidityLethalityRow[];
+  /** Comorbidades sem nenhum caso com desfecho conhecido: não dá para calcular a letalidade. */
+  omitted: string[];
+}
+
+export function prepareComorbidityLethality(
+  rows: ComorbidityLethalityRow[],
+): ComorbidityLethalityPlot {
+  const hasLethality = (row: ComorbidityLethalityRow) => row.resolved > 0;
+
+  return {
+    rows: rows.filter(hasLethality),
+    omitted: rows.filter((row) => !hasLethality(row)).map((row) => row.name),
+  };
+}
+
+const deathsLabel = (deaths: number): string => `${deaths} ${deaths === 1 ? 'óbito' : 'óbitos'}`;
+
+export function comorbidityLethalityTooltip(row: ComorbidityLethalityRow): string {
+  const withoutOutcome = row.value - row.resolved;
+  const lines = [
+    `<b>${row.name}</b>`,
+    `Letalidade: <b>${formatPercent(row.lethality)}</b>`,
+    `<b>${deathsLabel(row.deaths)}</b> em <b>${row.resolved}</b> casos com desfecho conhecido`,
+  ];
+  if (withoutOutcome > 0) {
+    lines.push(`Total de casos com a comorbidade: ${row.value} (${withoutOutcome} sem desfecho)`);
+  }
+  return lines.join('<br/>');
+}
+
+export function buildComorbidityLethalityOption(
+  plot: ComorbidityLethalityPlot,
+  theme: ChartTheme,
+): EChartsCoreOption {
+  // Ordem crescente: a maior letalidade fica no topo do gráfico.
+  const rows = [...plot.rows].sort((a, b) => a.lethality - b.lethality);
+
+  return {
+    grid: { left: 150, right: 120, top: 8, bottom: 32 },
+    tooltip: {
+      trigger: 'item',
+      backgroundColor: theme.tooltipBg,
+      borderColor: theme.grid,
+      textStyle: { color: theme.tooltipText },
+      formatter: (raw: unknown) => {
+        const row = (raw as { data?: { row?: ComorbidityLethalityRow } }).data?.row;
+        return row ? comorbidityLethalityTooltip(row) : '';
+      },
+    },
+    xAxis: {
+      type: 'value',
+      min: 0,
+      max: 100,
+      axisLabel: { color: theme.muted, formatter: '{value}%' },
+      splitLine: { lineStyle: { color: theme.grid } },
+    },
+    yAxis: {
+      type: 'category',
+      data: rows.map((row) => row.name),
+      axisTick: { show: false },
+      axisLine: { lineStyle: { color: theme.grid } },
+      axisLabel: { color: theme.text },
+    },
+    series: [
+      {
+        type: 'bar',
+        barMaxWidth: 28,
+        itemStyle: { color: BLUE },
+        data: rows.map((row) => ({ value: row.lethality, row })),
+        label: {
+          show: true,
+          position: 'right',
+          color: theme.text,
+          // "58,3% (42 de 72)": óbitos de casos com desfecho conhecido, a base do percentual.
+          formatter: (raw: unknown) => {
+            const row = (raw as { data: { row: ComorbidityLethalityRow } }).data.row;
+            return `${formatPercent(row.lethality)} (${row.deaths} de ${row.resolved})`;
+          },
+        },
+      },
+    ],
   };
 }
 

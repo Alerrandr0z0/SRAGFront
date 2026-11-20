@@ -103,6 +103,16 @@ export interface IcuWaitStats {
   median_wait_days: number | null;
 }
 
+// --- Percentual letalidade por comorbidades ---
+
+export interface ComorbidityLethalityRow {
+  name: string;
+  value: number;
+  deaths: number;
+  resolved: number;
+  lethality: number;
+}
+
 export interface IcuAccessPeriod extends IcuWaitStats {
   /** Chave do período: "2024", "2024-Q1" ou "2024-03". */
   period: string;
@@ -362,6 +372,11 @@ export function getWarningSigns(filters: SragFilters): Promise<WarningSignsRespo
 export function getRiskFactorLoad(filters: SragFilters): Promise<RiskFactorLoadResponse> {
   return getApiData<RiskFactorLoadResponse>(
     buildAnalyticsUrl('/analytics/risk_factor_load', filters),
+  )
+}
+export function getComorbidityLethality(filters: SragFilters): Promise<ComorbidityLethalityRow[]> {
+  return getApiData<ComorbidityLethalityRow[]>(
+    buildAnalyticsUrl('/analytics/comorbidity-lethality', filters),
   );
 }
 

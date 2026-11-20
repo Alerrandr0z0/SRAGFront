@@ -8,8 +8,8 @@ import CovidImmunizationCard from './CovidImmunizationCard';
 import DiagnosticLethalityCard from './DiagnosticLethalityCard';
 import DiagnosticMethodsCard from './DiagnosticMethodsCard';
 import HospitalStayCard from './HospitalStayCard';
-import IcuAccessCard from './IcuAccessCard';
 import ImagingCard from './ImagingCard';
+import IcuAccessCard from './IcuAccessCard';
 import LabPerformanceCard from './LabPerformanceCard';
 import MaternalOutcomesCard from './MaternalOutcomesCard';
 import NosocomialCard from './NosocomialCard';
@@ -17,6 +17,7 @@ import NotificationDelayCard from './NotificationDelayCard';
 import NotifyingUnitsCard from './NotifyingUnitsCard';
 import OccupationCard from './OccupationCard';
 import RiskFactorLoadCard from './RiskFactorLoadCard';
+import ComorbidityLethalityCard from './ComorbidityLethalityCard';
 import SamplePositivityCard from './SamplePositivityCard';
 import type { TabSection } from './SectionTabs';
 import SeverityCascadeCard from './SeverityCascadeCard';
@@ -79,6 +80,7 @@ export function SectionContent({ id, filters }: { id: SectionId; filters: SragFi
           <DiagnosticLethalityCard filters={filters} />
           <NosocomialCard filters={filters} />
           <IcuAccessCard filters={filters} />
+          <ComorbidityLethalityCard filters={filters} />
           <SeverityLethalityAgeCard filters={filters} />
           <LethalityAgeCard filters={filters} />
         </>
