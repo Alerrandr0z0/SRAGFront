@@ -218,7 +218,7 @@ const BairrosMap: React.FC<BairrosMapProps> = ({ entities, zonas = [] }) => {
           </MapContainer>
 
           <div
-            className="absolute bottom-4 left-4 z-[1000]"
+            className="absolute bottom-4 left-4 z-[1000] max-w-[calc(100%-2rem)]"
             style={{
               background: overlayBg,
               borderRadius: 8,
@@ -313,7 +313,7 @@ const BairrosMap: React.FC<BairrosMapProps> = ({ entities, zonas = [] }) => {
                   const v = Number(e.target.value);
                   setRangeMin(Math.min(v, rangeMax));
                 }}
-                style={{ flex: 1, height: 4, accentColor: '#f97316' }}
+                style={{ flex: 1, minWidth: 0, height: 4, accentColor: '#f97316' }}
               />
               <input
                 type="range"
@@ -325,7 +325,7 @@ const BairrosMap: React.FC<BairrosMapProps> = ({ entities, zonas = [] }) => {
                   const v = Number(e.target.value);
                   setRangeMax(Math.max(v, rangeMin));
                 }}
-                style={{ flex: 1, height: 4, accentColor: '#dc2626' }}
+                style={{ flex: 1, minWidth: 0, height: 4, accentColor: '#dc2626' }}
               />
             </div>
           </div>

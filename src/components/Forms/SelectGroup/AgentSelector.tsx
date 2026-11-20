@@ -20,7 +20,7 @@ const AgentSelector: React.FC<AgentSelectorProps> = ({ agentSelected, setAgentSe
   const [touched, setTouched] = useState<boolean>(false);
 
   return (
-    <div className="mb-4.5">
+    <div>
       <div className="relative z-20 bg-transparent dark:bg-form-input">
         <select
           value={agentSelected}
@@ -28,7 +28,7 @@ const AgentSelector: React.FC<AgentSelectorProps> = ({ agentSelected, setAgentSe
             setAgentSelected(e.target.value);
             setTouched(true);
           }}
-          className={`relative z-20 w-full appearance-none rounded border border-stroke bg-transparent py-3 px-5 outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary mr-4 ${
+          className={`relative z-20 w-full appearance-none rounded border border-stroke bg-transparent py-2.5 pl-3 pr-8 text-sm outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary ${
             touched ? 'text-black dark:text-white' : ''
           }`}
         >

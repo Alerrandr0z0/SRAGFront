@@ -1,47 +1,91 @@
 import { getApiData } from '../api/Api';
 import { buildSragQueryParams, type SragFilters } from './sragFilters';
 
-// --- Fluxo da jornada clínica (Sankey) ---
+// --- Perfil clínico: indicadores de leitura rápida ---
 
-export interface FlowNode {
-  name: string;
-}
-
-export interface FlowLink {
-  source: string;
-  target: string;
-  value: number;
+/** Uma etapa da cascata de gravidade (notificados → internados → UTI → ventilação invasiva). */
+export interface SeverityStep {
+  key: string;
+  label: string;
+  /** % dos casos notificados que chegam a esta etapa. */
   pct: number;
-}
-
-export interface ClinicalFlowResponse {
-  nodes: FlowNode[];
-  links: FlowLink[];
-}
-
-// --- Percentual letalidade por comorbidades ---
-
-export interface ComorbidityLethalityRow {
-  name: string;
-  value: number;
-  deaths: number;
+  cases: number;
+  /** Casos com desfecho conhecido (cura, óbito ou outro). */
   resolved: number;
-  lethality: number
+  deaths: number;
+  /** Óbitos ÷ casos com desfecho conhecido, em %; null sem casos com desfecho. */
+  lethality: number | null;
+  /** false quando há poucos casos com desfecho para o percentual ser confiável. */
+  reliable: boolean;
 }
 
+export interface SeverityCascadeResponse {
+  total: number;
+  steps: SeverityStep[];
+}
 
+export interface WarningSign {
+  key: string;
+  label: string;
+  cases: number;
+  resolved: number;
+  deaths: number;
+  /** Letalidade (%) de quem tem o sinal. */
+  lethality: number | null;
+  reliable: boolean;
+  /** Letalidade (%) de quem não tem o sinal. */
+  lethality_without: number | null;
+  reliable_without: boolean;
+}
 
-// --- Assinatura clínica de sintomas ---
+export interface WarningSignsResponse {
+  /** Letalidade geral, para comparação. */
+  baseline: number | null;
+  signs: WarningSign[];
+}
 
-export type SignatureProfile = 'all' | 'crianca' | 'adolescente' | 'adulto' | 'idoso';
-export type SignatureAgent = 'covid' | 'gripe' | 'vsr';
-/** Cada célula: [prevalência %, nº de casos com o sintoma]. */
-export type SignatureCell = [number, number];
+export interface RiskFactorBucket {
+  key: string;
+  label: string;
+  pct: number;
+  cases: number;
+  resolved: number;
+  deaths: number;
+  lethality: number | null;
+  reliable: boolean;
+}
 
-export interface SymptomsSignatureResponse {
-  labels: string[];
-  bands: string[];
-  matrices: Partial<Record<SignatureAgent, SignatureCell[][]>>;
+export interface RiskFactorLoadResponse {
+  baseline: number | null;
+  /** Fatores de risco considerados na contagem. */
+  factors: string[];
+  buckets: RiskFactorBucket[];
+}
+
+// --- Sintomas que diferenciam COVID-19, Influenza e VSR ---
+
+export type SymptomProfile = 'all' | 'crianca' | 'adolescente' | 'adulto' | 'idoso';
+
+export interface DistinctiveSymptom {
+  symptom: string;
+  pct: number;
+  /** Pontos percentuais acima do maior valor entre os outros agentes. */
+  gap: number;
+}
+
+export interface SymptomAgent {
+  key: string;
+  label: string;
+  cases: number;
+  /** Mesma ordem de `symptoms`. */
+  count: number[];
+  pct: number[];
+  distinctive: DistinctiveSymptom | null;
+}
+
+export interface SymptomsByAgentResponse {
+  symptoms: string[];
+  agents: SymptomAgent[];
 }
 
 // --- Acesso à UTI (tempo entre a internação e a entrada na UTI) ---
@@ -57,6 +101,16 @@ export interface IcuWaitStats {
   d8_plus: number;
   /** Mediana da espera entre quem esperou pelo menos 1 dia (null se ninguém esperou). */
   median_wait_days: number | null;
+}
+
+// --- Percentual letalidade por comorbidades ---
+
+export interface ComorbidityLethalityRow {
+  name: string;
+  value: number;
+  deaths: number;
+  resolved: number;
+  lethality: number;
 }
 
 export interface IcuAccessPeriod extends IcuWaitStats {
@@ -276,7 +330,7 @@ export function buildAnalyticsUrl(
   for (const [key, value] of Object.entries(extra)) params.set(key, value);
   const query = params.toString();
   return query ? `${path}?${query}` : path;
-} 
+}
 
 // gravidade e letalidade por faixa etária
 
@@ -305,22 +359,33 @@ export interface LethalityAgeAgentResponse {
   matrix: (number | null)[][];
 }
 
-export function getClinicalFlow(filters: SragFilters): Promise<ClinicalFlowResponse> {
-  return getApiData<ClinicalFlowResponse>(buildAnalyticsUrl('/analytics/clinical_flow', filters));
-}
-
-export function getComorbidityLethality(filters: SragFilters): Promise<ComorbidityLethalityRow[]> {
-  return getApiData<ComorbidityLethalityRow[]>(
-    buildAnalyticsUrl('/analytics/comorbidities_odds_ratio', filters),
+export function getSeverityCascade(filters: SragFilters): Promise<SeverityCascadeResponse> {
+  return getApiData<SeverityCascadeResponse>(
+    buildAnalyticsUrl('/analytics/severity_cascade', filters),
   );
 }
 
-export function getSymptomsSignature(
+export function getWarningSigns(filters: SragFilters): Promise<WarningSignsResponse> {
+  return getApiData<WarningSignsResponse>(buildAnalyticsUrl('/analytics/warning_signs', filters));
+}
+
+export function getRiskFactorLoad(filters: SragFilters): Promise<RiskFactorLoadResponse> {
+  return getApiData<RiskFactorLoadResponse>(
+    buildAnalyticsUrl('/analytics/risk_factor_load', filters),
+  )
+}
+export function getComorbidityLethality(filters: SragFilters): Promise<ComorbidityLethalityRow[]> {
+  return getApiData<ComorbidityLethalityRow[]>(
+    buildAnalyticsUrl('/analytics/comorbidity-lethality', filters),
+  );
+}
+
+export function getSymptomsByAgent(
   filters: SragFilters,
-  profile: SignatureProfile,
-): Promise<SymptomsSignatureResponse> {
-  return getApiData<SymptomsSignatureResponse>(
-    buildAnalyticsUrl('/analytics/symptoms_signature', filters, { profile }),
+  profile: SymptomProfile,
+): Promise<SymptomsByAgentResponse> {
+  return getApiData<SymptomsByAgentResponse>(
+    buildAnalyticsUrl('/analytics/symptoms_by_agent', filters, { profile }),
   );
 }
 
@@ -556,5 +621,81 @@ export function getHospitalStay(filters: SragFilters): Promise<HospitalStayRespo
 export function getVaccineJourney(filters: SragFilters): Promise<VaccineJourneyResponse> {
   return getApiData<VaccineJourneyResponse>(
     buildAnalyticsUrl('/analytics/vaccine_journey', filters),
+  );
+}
+
+// --- Corredor endêmico, perfil de quem morre e antiviral por faixa etária ---
+
+export type EndemicStatus = 'below' | 'expected' | 'elevated' | 'epidemic';
+
+export interface EndemicWeek {
+  week: number;
+  /** null nas semanas ainda sem dados do ano de referência. */
+  cases: number | null;
+  p25: number;
+  median: number;
+  p75: number;
+  /** Limite acima do qual a semana é epidêmica. */
+  alert: number;
+  status: EndemicStatus | null;
+}
+
+export interface EndemicChannelResponse {
+  enough_history: boolean;
+  min_years: number;
+  reference_year: number | null;
+  history_years: number[];
+  current_week: number | null;
+  current_cases: number | null;
+  current_status: EndemicStatus | null;
+  weeks_above: number;
+  weeks: EndemicWeek[];
+}
+
+export interface OutcomeProfile {
+  count: number;
+  median_age: number | null;
+  unvaccinated_pct: number | null;
+  unvaccinated_known: number;
+  risk_factor_pct: number | null;
+  risk_factor_known: number;
+  reliable: boolean;
+}
+
+export interface FatalProfileResponse {
+  deaths: OutcomeProfile | null;
+  survivors: OutcomeProfile | null;
+}
+
+export interface AntiviralAgeBand {
+  key: string;
+  label: string;
+  cases: number;
+  treated: number;
+  median_days: number | null;
+  timely_pct: number | null;
+  untreated_pct: number | null;
+  reliable: boolean;
+}
+
+export interface AntiviralDelayByAgeResponse {
+  timely_days: number;
+  overall: AntiviralAgeBand | null;
+  bands: AntiviralAgeBand[];
+}
+
+export function getEndemicChannel(filters: SragFilters): Promise<EndemicChannelResponse> {
+  return getApiData<EndemicChannelResponse>(
+    buildAnalyticsUrl('/analytics/endemic_channel', filters),
+  );
+}
+
+export function getFatalProfile(filters: SragFilters): Promise<FatalProfileResponse> {
+  return getApiData<FatalProfileResponse>(buildAnalyticsUrl('/analytics/fatal_profile', filters));
+}
+
+export function getAntiviralDelayByAge(filters: SragFilters): Promise<AntiviralDelayByAgeResponse> {
+  return getApiData<AntiviralDelayByAgeResponse>(
+    buildAnalyticsUrl('/analytics/antiviral_delay_by_age', filters),
   );
 }

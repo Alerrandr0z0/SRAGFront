@@ -49,7 +49,7 @@ const Header = (props: {
         <div className="absolute left-1/2 -translate-x-1/2">
           <NavLink to="/" className="flex items-center gap-2.5">
             <img src={Logo} alt="Logo Prefeitura" className="h-9 w-auto" />
-            <span className="text-xl font-bold text-black dark:text-white whitespace-nowrap">
+            <span className="hidden text-xl font-bold text-black dark:text-white whitespace-nowrap sm:inline">
               SRAG · SIVEP-Gripe
             </span>
           </NavLink>

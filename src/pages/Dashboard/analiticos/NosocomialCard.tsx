@@ -27,7 +27,7 @@ const lethalityDetail = (origin: OriginLethality) =>
   `${formatCount(origin.deaths)} óbitos em ${formatCount(origin.resolved)} casos com desfecho`;
 
 export default function NosocomialCard({ filters }: { filters: SragFilters }) {
-  const [granularity, setGranularity] = useState<IcuGranularity>('quarter');
+  const [granularity, setGranularity] = useState<IcuGranularity>('year');
   const slice = useAnalyticsData(fetchNosocomial, filters, granularity);
   const theme = chartTheme(useIsDark());
   const data = slice.data;

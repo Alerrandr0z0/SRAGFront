@@ -19,7 +19,7 @@ const YearSelector: React.FC<YearSelectorProps> = ({ yearSelected, setYearSelect
   const years = Array.from({ length: currentYear - firstYear + 1 }, (_, i) => currentYear - i);
 
   return (
-    <div className="mb-4.5">
+    <div>
       <div className="relative z-20 bg-transparent dark:bg-form-input">
         <select
           value={yearSelected}
@@ -27,7 +27,7 @@ const YearSelector: React.FC<YearSelectorProps> = ({ yearSelected, setYearSelect
             setYearSelected(e.target.value);
             changeTextColor();
           }}
-          className={`relative z-20 w-full appearance-none rounded border border-stroke bg-transparent py-3 px-5 outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary mr-4 ${
+          className={`relative z-20 w-full appearance-none rounded border border-stroke bg-transparent py-2.5 pl-3 pr-8 text-sm outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary ${
             isOptionSelected ? 'text-black dark:text-white' : ''
           }`}
         >

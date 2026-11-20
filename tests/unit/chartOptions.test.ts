@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  agentLegendName,
+  agentsWithCases,
   antiviralWindowTooltip,
   buildAntiviralWindowsOption,
   buildDiagnosticLethalityOption,
   buildDiagnosticMethodsOption,
-  buildHeatmapOption,
   buildIcuAccessOption,
   buildImagingOption,
   buildMaternalOutcomesOption,
@@ -13,14 +14,13 @@ import {
   buildComorbidityLethalityOption,
   buildRankedBarsOption,
   buildSamplePositivityOption,
-  buildSankeyOption,
   buildStayCurveOption,
+  buildSymptomsByAgentOption,
   buildUnitDelayOption,
   comorbidityLethalityTooltip,
   diagnosticPeriodTooltip,
   formatPercent,
   formatPeriod,
-  heatmapLabel,
   icuPeriodTooltip,
   imagingTooltip,
   lethalityTooltip,
@@ -32,8 +32,8 @@ import {
   rankedBarTooltip,
   rankedBarsRows,
   samplePositivityTooltip,
-  sankeyTooltip,
   stayCurveTooltip,
+  symptomsTooltip,
   unitDelayAsRows,
 } from '../../src/components/Charts/Analytics/chartOptions';
 import { chartTheme } from '../../src/components/Charts/Analytics/chartTheme';
@@ -48,6 +48,7 @@ import type {
   NotificationDelayBairro,
   ComorbidityLethalityRow,
   SamplePositivityResponse,
+  SymptomsByAgentResponse,
 } from '../../src/service/srag/sragAnalytics';
 
 const theme = chartTheme(false);
@@ -121,66 +122,6 @@ describe('letalidade por comorbidade', () => {
     );
     expect(tooltip).toContain('<b>1 óbito</b> em <b>7</b>');
     expect(tooltip).not.toContain('sem desfecho');
-  });
-});
-
-
-describe('buildSankeyOption', () => {
-  const flow = {
-    nodes: [{ name: 'Comunitária' }, { name: 'Óbito' }, { name: 'Origem (Ignorado)' }],
-    links: [{ source: 'Comunitária', target: 'Óbito', value: 3, pct: 25 }],
-  };
-
-  it('mapeia nós e ligações e colore pelo significado', () => {
-    const option = buildSankeyOption(flow, theme) as {
-      series: { data: { name: string; itemStyle: { color: string } }[]; links: unknown[] }[];
-    };
-    const [serie] = option.series;
-    expect(serie.links).toHaveLength(1);
-    expect(serie.data.find((n) => n.name === 'Óbito')?.itemStyle.color).toBe('#DC2626');
-    expect(serie.data.find((n) => n.name === 'Origem (Ignorado)')?.itemStyle.color).toBe(
-      theme.muted,
-    );
-  });
-
-  it('descreve ligações e nós no tooltip', () => {
-    const edge = sankeyTooltip({
-      dataType: 'edge',
-      data: { source: 'Comunitária', target: 'Óbito', value: 3, pct: 25 },
-    });
-    expect(edge).toContain('3</b> casos (25% de "Comunitária")');
-    expect(sankeyTooltip({ name: 'Cura', value: 7 })).toContain('Cura: <b>7</b> casos');
-  });
-});
-
-describe('buildHeatmapOption', () => {
-  const matrix: [number, number][][] = [
-    [
-      [50, 2],
-      [0, 0],
-    ],
-  ];
-
-  it('gera uma célula por sintoma × faixa etária', () => {
-    const option = buildHeatmapOption(['Febre'], ['Adulto', 'Idoso'], matrix, theme, true) as {
-      series: { data: { value: number[] }[] }[];
-    };
-    expect(option.series[0].data.map((d) => d.value)).toEqual([
-      [0, 0, 50, 2],
-      [1, 0, 0, 0],
-    ]);
-  });
-
-  it('mostra "–" quando não há casos no grupo', () => {
-    expect(heatmapLabel({ value: [1, 0, 0, 0] })).toBe('–');
-    expect(heatmapLabel({ value: [0, 0, 49.6, 2] })).toBe('50%');
-  });
-
-  it('esconde os rótulos do eixo y fora do primeiro gráfico', () => {
-    const option = buildHeatmapOption(['Febre'], ['Adulto'], [[[10, 1]]], theme, false) as {
-      yAxis: { axisLabel: { show: boolean } };
-    };
-    expect(option.yAxis.axisLabel.show).toBe(false);
   });
 });
 
@@ -322,7 +263,7 @@ describe('buildNosocomialOption', () => {
     expect(bars.map((bar) => bar.itemStyle.color)).toEqual(['#3C50E0', '#DC2626']);
   });
 
-    it('desenha a barra de infecção hospitalar e a linha de média, sem limite de alerta', () => {
+  it('desenha a barra de infecção hospitalar e a linha de média, sem limite de alerta', () => {
     const option = buildNosocomialOption(base, theme) as Option;
     expect(option.series.map((serie) => serie.name)).toEqual([
       'Infecção hospitalar',
@@ -331,7 +272,7 @@ describe('buildNosocomialOption', () => {
     expect(option.series[1].data).toEqual([8, 8]);
   });
 
-    it('mostra no tooltip o período e a contagem, sem aviso de alerta', () => {
+  it('mostra no tooltip o período e a contagem, sem aviso de alerta', () => {
     const tooltip = nosocomialTooltip(base.periods[1], 'month');
     expect(tooltip).toContain('fev/24');
     expect(tooltip).toContain('Infecção hospitalar: <b>12</b> de 20 casos (60,0%)');
@@ -718,5 +659,77 @@ describe('buildStayCurveOption', () => {
     expect(tooltip).toContain('Até o 2º dia de internação');
     expect(tooltip).toContain('Já tiveram alta: <b>55,5%</b>');
     expect(tooltip).toContain('Morreram: <b>10,0%</b>');
+  });
+});
+
+describe('sintomas por agente', () => {
+  const data: SymptomsByAgentResponse = {
+    symptoms: ['Febre', 'Tosse', 'Perda de olfato'],
+    agents: [
+      {
+        key: 'covid',
+        label: 'COVID-19',
+        cases: 100,
+        count: [80, 70, 60],
+        pct: [80, 70, 60],
+        distinctive: { symptom: 'Perda de olfato', pct: 60, gap: 40 },
+      },
+      {
+        key: 'gripe',
+        label: 'Influenza',
+        cases: 50,
+        count: [45, 30, 5],
+        pct: [90, 60, 10],
+        distinctive: null,
+      },
+      { key: 'vsr', label: 'VSR', cases: 0, count: [0, 0, 0], pct: [0, 0, 0], distinctive: null },
+    ],
+  };
+
+  it('ignora agentes sem casos', () => {
+    expect(agentsWithCases(data).map((agent) => agent.key)).toEqual(['covid', 'gripe']);
+  });
+
+  it('escreve o total de casos na legenda', () => {
+    expect(agentLegendName(data.agents[0])).toBe('COVID-19 (100 casos)');
+  });
+
+  it('monta uma série de barras por agente com casos', () => {
+    const option = buildSymptomsByAgentOption(data, theme) as {
+      series: { name: string; data: number[]; itemStyle: { color: string } }[];
+      yAxis: { data: string[]; inverse: boolean };
+    };
+    expect(option.series.map((serie) => serie.name)).toEqual([
+      'COVID-19 (100 casos)',
+      'Influenza (50 casos)',
+    ]);
+    expect(option.series[0].data).toEqual([80, 70, 60]);
+    expect(option.yAxis.data).toEqual(['Febre', 'Tosse', 'Perda de olfato']);
+    expect(option.yAxis.inverse).toBe(true);
+  });
+
+  it('limita a quantidade de sintomas exibidos', () => {
+    const option = buildSymptomsByAgentOption(data, theme, 2) as {
+      series: { data: number[] }[];
+      yAxis: { data: string[] };
+    };
+    expect(option.yAxis.data).toEqual(['Febre', 'Tosse']);
+    expect(option.series[0].data).toEqual([80, 70]);
+  });
+
+  it('usa a mesma cor do agente nos outros gráficos', () => {
+    const option = buildSymptomsByAgentOption(data, theme) as {
+      series: { itemStyle: { color: string } }[];
+    };
+    expect(option.series[0].itemStyle.color).toBe('#EA580C');
+    expect(option.series[1].itemStyle.color).toBe('#2563EB');
+  });
+
+  it('o tooltip mostra todos os agentes com contagem e sublinha o da barra', () => {
+    const tooltip = symptomsTooltip(data, 0, 'COVID-19 (100 casos)');
+    expect(tooltip).toContain('<b>Febre</b>');
+    expect(tooltip).toContain('<u>COVID-19: <b>80%</b> (80 de 100)</u>');
+    expect(tooltip).toContain('Influenza: <b>90%</b> (45 de 50)');
+    expect(tooltip).not.toContain('VSR');
   });
 });

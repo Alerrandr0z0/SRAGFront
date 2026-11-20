@@ -1,12 +1,13 @@
 import type {
   AntiviralWindow,
   AntiviralWindowsResponse,
-  ClinicalFlowResponse,
   DiagnosticLethalityMethod,
   DiagnosticLethalityResponse,
   DiagnosticMethodsPeriod,
   DiagnosticMethodsResponse,
   ComorbidityLethalityRow,
+  EndemicChannelResponse,
+  EndemicWeek,
   IcuAccessPeriod,
   IcuAccessResponse,
   IcuGranularity,
@@ -23,8 +24,9 @@ import type {
   SamplePositivityRow,
   SeverityByAgePoint,
   SeverityByAgeResponse,
-  SignatureCell,
   StayCurvePoint,
+  SymptomAgent,
+  SymptomsByAgentResponse,
   UnitDelayRow,
 } from '../../../service/srag/sragAnalytics';
 import type { ChartTheme } from './chartTheme';
@@ -34,79 +36,86 @@ const RED = '#DC2626';
 const BLUE = '#3C50E0';
 const GREEN = '#10B981';
 const AMBER = '#F59E0B';
-const CYAN = '#0FADCF';
 const SLATE = '#94A3B8';
 
 // ---------------------------------------------------------------------------
-// Sankey — fluxo da jornada clínica
+// Sintomas por agente — barras agrupadas (o que diferencia COVID-19, Influenza e VSR)
 // ---------------------------------------------------------------------------
 
-const NODE_COLORS: Record<string, string> = {
-  Comunitária: GREEN,
-  'Infecção Hospitalar': AMBER,
-  'Internado em UTI': BLUE,
-  'Internado em Enfermaria': CYAN,
-  'Vent. Invasiva': RED,
-  'Vent. Não Inv.': AMBER,
-  'Sem Suporte': SLATE,
-  Cura: GREEN,
-  Óbito: RED,
-  'Em Aberto': SLATE,
-};
+const SYMPTOMS_SHOWN = 8;
 
-interface SankeyTooltipParams {
-  dataType?: string;
-  name?: string;
-  value?: number;
-  data?: { source?: string; target?: string; value?: number; pct?: number };
+/** Agentes sem casos no recorte ficam de fora do gráfico (só gerariam barras vazias). */
+export function agentsWithCases(data: SymptomsByAgentResponse): SymptomAgent[] {
+  return data.agents.filter((agent) => agent.cases > 0);
 }
 
-export function sankeyTooltip(params: SankeyTooltipParams): string {
-  const { data } = params;
-  if (params.dataType === 'edge' && data) {
-    return `${data.source} → ${data.target}<br/><b>${data.value}</b> casos (${data.pct}% de "${data.source}")`;
-  }
-  return `${params.name}: <b>${params.value ?? 0}</b> casos`;
+export function agentLegendName(agent: SymptomAgent): string {
+  return `${agent.label} (${agent.cases.toLocaleString('pt-BR')} casos)`;
 }
 
-export function buildSankeyOption(
-  flow: ClinicalFlowResponse,
+export function symptomsTooltip(
+  data: SymptomsByAgentResponse,
+  symptomIndex: number,
+  seriesName?: string,
+): string {
+  const header = `<b>${data.symptoms[symptomIndex] ?? ''}</b>`;
+  const lines = agentsWithCases(data).map((agent) => {
+    const text = `${agent.label}: <b>${agent.pct[symptomIndex] ?? 0}%</b> (${agent.count[symptomIndex] ?? 0} de ${agent.cases})`;
+    return agentLegendName(agent) === seriesName ? `<u>${text}</u>` : text;
+  });
+  return [header, ...lines].join('<br/>');
+}
+
+export function buildSymptomsByAgentOption(
+  data: SymptomsByAgentResponse,
   theme: ChartTheme,
+  limit = SYMPTOMS_SHOWN,
 ): EChartsCoreOption {
+  const agents = agentsWithCases(data);
+  const symptoms = data.symptoms.slice(0, limit);
+
   return {
+    legend: { top: 0, textStyle: { color: theme.text } },
+    grid: { left: 150, right: 44, top: 44, bottom: 24 },
     tooltip: {
       trigger: 'item',
       backgroundColor: theme.tooltipBg,
       borderColor: theme.grid,
       textStyle: { color: theme.tooltipText },
-      formatter: (raw: unknown) => sankeyTooltip(raw as SankeyTooltipParams),
-    },
-    series: [
-      {
-        type: 'sankey',
-        left: 8,
-        right: 140,
-        top: 8,
-        bottom: 8,
-        nodeAlign: 'justify',
-        nodeWidth: 14,
-        nodeGap: 14,
-        draggable: false,
-        emphasis: { focus: 'adjacency' },
-        lineStyle: { color: 'gradient', curveness: 0.5, opacity: 0.4 },
-        label: { color: theme.text, fontSize: 12 },
-        data: flow.nodes.map((node) => ({
-          name: node.name,
-          itemStyle: { color: NODE_COLORS[node.name] ?? theme.muted },
-        })),
-        links: flow.links.map((link) => ({
-          source: link.source,
-          target: link.target,
-          value: link.value,
-          pct: link.pct,
-        })),
+      formatter: (raw: unknown) => {
+        const { dataIndex, seriesName } = raw as { dataIndex: number; seriesName?: string };
+        return symptomsTooltip(data, dataIndex, seriesName);
       },
-    ],
+    },
+    xAxis: {
+      type: 'value',
+      min: 0,
+      max: 100,
+      axisLabel: { color: theme.muted, formatter: '{value}%' },
+      splitLine: { lineStyle: { color: theme.grid } },
+    },
+    yAxis: {
+      type: 'category',
+      inverse: true,
+      data: symptoms,
+      axisTick: { show: false },
+      axisLine: { lineStyle: { color: theme.grid } },
+      axisLabel: { color: theme.text, width: 134, overflow: 'truncate' },
+    },
+    series: agents.map((agent) => ({
+      name: agentLegendName(agent),
+      type: 'bar',
+      barMaxWidth: 14,
+      itemStyle: { color: AGENT_COLORS[agent.label] ?? theme.muted },
+      label: {
+        show: true,
+        position: 'right',
+        color: theme.muted,
+        fontSize: 10,
+        formatter: (raw: unknown) => `${(raw as { value: number }).value}%`,
+      },
+      data: agent.pct.slice(0, limit),
+    })),
   };
 }
 
@@ -195,77 +204,6 @@ export function buildComorbidityLethalityOption(
             return `${formatPercent(row.lethality)} (${row.deaths} de ${row.resolved})`;
           },
         },
-      },
-    ],
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Heatmap — assinatura clínica de sintomas
-// ---------------------------------------------------------------------------
-
-export function heatmapLabel(raw: { value?: number[] }): string {
-  const value = raw.value ?? [];
-  return (value[3] ?? 0) > 0 ? `${Math.round(value[2] ?? 0)}%` : '–';
-}
-
-export function buildHeatmapOption(
-  labels: string[],
-  bands: string[],
-  matrix: SignatureCell[][],
-  theme: ChartTheme,
-  showLabels: boolean,
-): EChartsCoreOption {
-  const data = matrix.flatMap((row, y) =>
-    row.map(([prevalence, cases], x) => ({
-      value: [x, y, prevalence, cases],
-      label: { color: prevalence > 55 ? '#FFFFFF' : theme.text },
-    })),
-  );
-
-  return {
-    grid: { left: showLabels ? 170 : 8, right: 8, top: 8, bottom: 30 },
-    tooltip: {
-      backgroundColor: theme.tooltipBg,
-      borderColor: theme.grid,
-      textStyle: { color: theme.tooltipText },
-      formatter: (raw: unknown) => {
-        const [x = 0, y = 0, prevalence = 0, cases = 0] = (raw as { value?: number[] }).value ?? [];
-        return `${labels[y]} · ${bands[x]}<br/><b>${prevalence}%</b> (${cases} casos)`;
-      },
-    },
-    xAxis: {
-      type: 'category',
-      data: bands,
-      axisTick: { show: false },
-      axisLine: { show: false },
-      axisLabel: { color: theme.muted, fontSize: 11 },
-    },
-    yAxis: {
-      type: 'category',
-      data: labels,
-      inverse: true,
-      axisTick: { show: false },
-      axisLine: { show: false },
-      axisLabel: { show: showLabels, color: theme.text, fontSize: 11 },
-    },
-    visualMap: {
-      show: false,
-      min: 0,
-      max: 100,
-      dimension: 2,
-      inRange: { color: [theme.heatLow, theme.heatHigh] },
-    },
-    series: [
-      {
-        type: 'heatmap',
-        data,
-        label: {
-          show: true,
-          fontSize: 10,
-          formatter: (raw: unknown) => heatmapLabel(raw as { value?: number[] }),
-        },
-        itemStyle: { borderColor: theme.tooltipBg, borderWidth: 2 },
       },
     ],
   };
@@ -782,7 +720,7 @@ export function buildImagingOption(rows: ImagingFinding[], theme: ChartTheme): E
 // Gravidade e letalidade por faixa etária — barras empilhadas + linhas de CFR
 // ---------------------------------------------------------------------------
 
-const AGENT_COLORS: Record<string, string> = {
+export const AGENT_COLORS: Record<string, string> = {
   VSR: '#0F766E',
   Influenza: '#2563EB',
   'COVID-19': '#EA580C',
@@ -1317,6 +1255,133 @@ export function buildStayCurveOption(
         RED,
         curve.map((point) => point.death_pct),
       ),
+    ],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Corredor endêmico — casos da semana contra a faixa esperada dos anos anteriores
+// ---------------------------------------------------------------------------
+
+const ENDEMIC_STATUS_TEXT: Record<string, string> = {
+  below: 'abaixo do esperado',
+  expected: 'dentro do esperado',
+  elevated: 'acima do esperado',
+  epidemic: 'em nível epidêmico',
+};
+
+export function endemicTooltip(week: EndemicWeek, referenceYear: number | null): string {
+  const lines = [`<b>Semana epidemiológica ${week.week}</b>`];
+  if (week.cases !== null) {
+    const status = week.status ? ` — ${ENDEMIC_STATUS_TEXT[week.status]}` : '';
+    lines.push(`${referenceYear ?? 'Ano atual'}: <b>${week.cases}</b> casos${status}`);
+  }
+  lines.push(
+    `Esperado: ${week.p25.toLocaleString('pt-BR')} a ${week.p75.toLocaleString('pt-BR')} (mediana ${week.median.toLocaleString('pt-BR')})`,
+    `Alerta acima de ${week.alert.toLocaleString('pt-BR')} casos`,
+  );
+  return lines.join('<br/>');
+}
+
+const bandSeries = (
+  name: string,
+  stack: string,
+  data: number[],
+  color: string,
+  opacity: number,
+) => ({
+  name,
+  type: 'line',
+  stack,
+  symbol: 'none',
+  silent: true,
+  lineStyle: { width: 0 },
+  itemStyle: { color },
+  areaStyle: { color, opacity },
+  data,
+});
+
+export function buildEndemicChannelOption(
+  data: EndemicChannelResponse,
+  theme: ChartTheme,
+): EChartsCoreOption {
+  const { weeks } = data;
+  const referenceName = `Casos em ${data.reference_year}`;
+  const names = ['Faixa esperada', 'Zona de alerta', 'Mediana histórica', referenceName];
+  return {
+    legend: { top: 0, data: names, textStyle: { color: theme.text } },
+    grid: { left: 48, right: 16, top: 44, bottom: 40 },
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'line' },
+      backgroundColor: theme.tooltipBg,
+      borderColor: theme.grid,
+      textStyle: { color: theme.tooltipText },
+      formatter: (raw: unknown) => {
+        const [first] = raw as { dataIndex: number }[];
+        const week = first ? weeks[first.dataIndex] : undefined;
+        return week ? endemicTooltip(week, data.reference_year) : '';
+      },
+    },
+    xAxis: {
+      type: 'category',
+      name: 'Semana epidemiológica',
+      nameLocation: 'middle',
+      nameGap: 26,
+      nameTextStyle: { color: theme.muted },
+      data: weeks.map((week) => week.week),
+      boundaryGap: false,
+      axisTick: { show: false },
+      axisLine: { lineStyle: { color: theme.grid } },
+      axisLabel: { color: theme.muted, interval: 3 },
+    },
+    yAxis: {
+      type: 'value',
+      min: 0,
+      axisLabel: { color: theme.muted },
+      splitLine: { lineStyle: { color: theme.grid } },
+    },
+    series: [
+      {
+        name: 'base',
+        type: 'line',
+        stack: 'corredor',
+        symbol: 'none',
+        silent: true,
+        lineStyle: { width: 0 },
+        data: weeks.map((week) => week.p25),
+      },
+      bandSeries(
+        'Faixa esperada',
+        'corredor',
+        weeks.map((week) => week.p75 - week.p25),
+        GREEN,
+        0.3,
+      ),
+      bandSeries(
+        'Zona de alerta',
+        'corredor',
+        weeks.map((week) => week.alert - week.p75),
+        AMBER,
+        0.3,
+      ),
+      {
+        name: 'Mediana histórica',
+        type: 'line',
+        symbol: 'none',
+        silent: true,
+        lineStyle: { type: 'dashed', width: 1.5, color: theme.muted },
+        itemStyle: { color: theme.muted },
+        data: weeks.map((week) => week.median),
+      },
+      {
+        name: referenceName,
+        type: 'line',
+        symbolSize: 5,
+        lineStyle: { width: 2.5, color: BLUE },
+        itemStyle: { color: BLUE },
+        data: weeks.map((week) => week.cases),
+      },
     ],
   };
 }
